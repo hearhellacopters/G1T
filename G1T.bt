@@ -1,0 +1,915 @@
+//------------------------------------------------
+//--- 010 Editor v9.0.2 Binary Template
+//
+//      File: Koei Tecmo Texture Container
+//   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
+//   Version: 1.6
+//   Purpose: Parsing G1T texture containers
+//  Category: OO_Asset
+// File Mask: *.g1t
+//  ID Bytes: 
+//   History:
+//   1.6    2024-12-16  HearHellacopters: Rewrite with updated formats to enums
+//   1.5    2023-11-04  HearHellacopters: Added bpp for formats size
+//   1.4    2019-11-28  HearHellacopters: Edit better looping
+//   1.3    2019-11-28  Joschuka: Edit for DFFOO g1ts.
+//   1.2    2019-11-28  HealingBrew: Updated MipCount, Subsystem, and Dimension logic.
+//   1.1.1  2019-08-23  Raytwo: Added the normal map flag table
+//   1.1    2019-09-08  Raytwo: Added support for RGBA8 internal format
+//   1.0    2019-08-22  Raytwo: Made the original file
+//------------------------------------------------
+LittleEndian();
+
+ // Texture enums for all Window and Open GL formats
+typedef enum <ushort> 
+{
+ // Windows DXGI ENUMS 
+ // https://learn.microsoft.com/en-us/uwp/api/windows.graphics.directx.directxpixelformat
+    DXGI_FORMAT_R32G32B32A32_TYPELESS                   = 0x01,
+    DXGI_FORMAT_R32G32B32A32_FLOAT                      = 0x02,
+    DXGI_FORMAT_R32G32B32A32_UINT                       = 0x03,
+    DXGI_FORMAT_R32G32B32A32_SINT                       = 0x04,
+    DXGI_FORMAT_R32G32B32_TYPELESS                      = 0x05,
+    DXGI_FORMAT_R32G32B32_FLOAT                         = 0x06,
+    DXGI_FORMAT_R32G32B32_UINT                          = 0x07,
+    DXGI_FORMAT_R32G32B32_SINT                          = 0x08,
+    DXGI_FORMAT_R16G16B16A16_TYPELESS                   = 0x09,
+    DXGI_FORMAT_R16G16B16A16_FLOAT                      = 0x0A,
+    DXGI_FORMAT_R16G16B16A16_UNORM                      = 0x0B,
+    DXGI_FORMAT_R16G16B16A16_UINT                       = 0x0C,
+    DXGI_FORMAT_R16G16B16A16_SNORM                      = 0x0D,
+    DXGI_FORMAT_R16G16B16A16_SINT                       = 0x0E,
+    DXGI_FORMAT_R32G32_TYPELESS                         = 0x0F,
+    DXGI_FORMAT_R32G32_FLOAT                            = 0x10,
+    DXGI_FORMAT_R32G32_UINT                             = 0x11,
+    DXGI_FORMAT_R32G32_SINT                             = 0x12,
+    DXGI_FORMAT_R32G8X24_TYPELESS                       = 0x13,
+    DXGI_FORMAT_D32_FLOAT_S8X24_UINT                    = 0x14,
+    DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS                = 0x15,
+    DXGI_FORMAT_X32_TYPELESS_G8X24_UINT                 = 0x16,
+    DXGI_FORMAT_R10G10B10A2_TYPELESS                    = 0x17,
+    DXGI_FORMAT_R10G10B10A2_UNORM                       = 0x18,
+    DXGI_FORMAT_R10G10B10A2_UINT                        = 0x19,
+    DXGI_FORMAT_R11G11B10_FLOAT                         = 0x1A,
+    DXGI_FORMAT_R8G8B8A8_TYPELESS                       = 0x1B,
+    DXGI_FORMAT_R8G8B8A8_UNORM                          = 0x1C,
+    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB                     = 0x1D,
+    DXGI_FORMAT_R8G8B8A8_UINT                           = 0x1E,
+    DXGI_FORMAT_R8G8B8A8_SNORM                          = 0x1F,
+    DXGI_FORMAT_R8G8B8A8_SINT                           = 0x20,
+    DXGI_FORMAT_R16G16_TYPELESS                         = 0x21,
+    DXGI_FORMAT_R16G16_FLOAT                            = 0x22,
+    DXGI_FORMAT_R16G16_UNORM                            = 0x23,
+    DXGI_FORMAT_R16G16_UINT                             = 0x24,
+    DXGI_FORMAT_R16G16_SNORM                            = 0x25,
+    DXGI_FORMAT_R16G16_SINT                             = 0x26,
+    DXGI_FORMAT_R32_TYPELESS                            = 0x27,
+    DXGI_FORMAT_D32_FLOAT                               = 0x28,
+    DXGI_FORMAT_R32_FLOAT                               = 0x29,
+    DXGI_FORMAT_R32_UINT                                = 0x2A,
+    DXGI_FORMAT_R32_SINT                                = 0x2B,
+    DXGI_FORMAT_R24G8_TYPELESS                          = 0x2C,
+    DXGI_FORMAT_D24_UNORM_S8_UINT                       = 0x2D,
+    DXGI_FORMAT_R24_UNORM_X8_TYPELESS                   = 0x2E,
+    DXGI_FORMAT_X24_TYPELESS_G8_UINT                    = 0x2F,
+    DXGI_FORMAT_R8G8_TYPELESS                           = 0x30,
+    DXGI_FORMAT_R8G8_UNORM                              = 0x31,
+    DXGI_FORMAT_R8G8_UINT                               = 0x32,
+    DXGI_FORMAT_R8G8_SNORM                              = 0x33,
+    DXGI_FORMAT_R8G8_SINT                               = 0x34,
+    DXGI_FORMAT_R16_TYPELESS                            = 0x35,
+    DXGI_FORMAT_R16_FLOAT                               = 0x36,
+    DXGI_FORMAT_D16_UNORM                               = 0x37,
+    DXGI_FORMAT_R16_UNORM                               = 0x38,
+    DXGI_FORMAT_R16_UINT                                = 0x39,
+    DXGI_FORMAT_R16_SNORM                               = 0x3A,
+    DXGI_FORMAT_R16_SINT                                = 0x3B,
+    DXGI_FORMAT_R8_TYPELESS                             = 0x3C,
+    DXGI_FORMAT_R8_UNORM                                = 0x3D,
+    DXGI_FORMAT_R8_UINT                                 = 0x3E,
+    DXGI_FORMAT_R8_SNORM                                = 0x3F,
+    DXGI_FORMAT_R8_SINT                                 = 0x40,
+    DXGI_FORMAT_A8_UNORM                                = 0x41,
+    DXGI_FORMAT_R1_UNORM                                = 0x42,
+    DXGI_FORMAT_R9G9B9E5_SHAREDEXP                      = 0x43,
+    DXGI_FORMAT_R8G8_B8G8_UNORM                         = 0x44,
+    DXGI_FORMAT_G8R8_G8B8_UNORM                         = 0x45,
+    DXGI_FORMAT_BC1_TYPELESS                            = 0x46,
+    DXGI_FORMAT_BC1_UNORM                               = 0x47,
+    DXGI_FORMAT_BC1_UNORM_SRGB                          = 0x48,
+    DXGI_FORMAT_BC2_TYPELESS                            = 0x49,
+    DXGI_FORMAT_BC2_UNORM                               = 0x4A,
+    DXGI_FORMAT_BC2_UNORM_SRGB                          = 0x4B,
+    DXGI_FORMAT_BC3_TYPELESS                            = 0x4C,
+    DXGI_FORMAT_BC3_UNORM                               = 0x4D,
+    DXGI_FORMAT_BC3_UNORM_SRGB                          = 0x4E,
+    DXGI_FORMAT_BC4_TYPELESS                            = 0x4F,
+    DXGI_FORMAT_BC4_UNORM                               = 0x50,
+    DXGI_FORMAT_BC4_SNORM                               = 0x51,
+    DXGI_FORMAT_BC5_TYPELESS                            = 0x52,
+    DXGI_FORMAT_BC5_UNORM                               = 0x53,
+    DXGI_FORMAT_BC5_SNORM                               = 0x54,
+    DXGI_FORMAT_B5G6R5_UNORM                            = 0x55,
+    DXGI_FORMAT_B5G5R5A1_UNORM                          = 0x56,
+    DXGI_FORMAT_B8G8R8A8_UNORM                          = 0x57,
+    DXGI_FORMAT_B8G8R8X8_UNORM                          = 0x58,
+    DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM              = 0x59,
+    DXGI_FORMAT_B8G8R8A8_TYPELESS                       = 0x5A,
+    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB                     = 0x5B,
+    DXGI_FORMAT_B8G8R8X8_TYPELESS                       = 0x5C,
+    DXGI_FORMAT_B8G8R8X8_UNORM_SRGB                     = 0x5D,
+    DXGI_FORMAT_BC6H_TYPELESS                           = 0x5E,
+    DXGI_FORMAT_BC6H_UF16                               = 0x5F,
+    DXGI_FORMAT_BC6H_SF16                               = 0x60,
+    DXGI_FORMAT_BC7_TYPELESS                            = 0x61,
+    DXGI_FORMAT_BC7_UNORM                               = 0x62,
+    DXGI_FORMAT_BC7_UNORM_SRGB                          = 0x63,
+    DXGI_FORMAT_AYUV                                    = 0x64,
+    DXGI_FORMAT_Y410                                    = 0x65,
+    DXGI_FORMAT_Y416                                    = 0x66,
+    DXGI_FORMAT_NV12                                    = 0x67,
+    DXGI_FORMAT_P010                                    = 0x68,
+    DXGI_FORMAT_P016                                    = 0x69,
+    DXGI_FORMAT_420_OPAQUE                              = 0x6A,
+    DXGI_FORMAT_YUY2                                    = 0x6B,
+    DXGI_FORMAT_Y210                                    = 0x6C,
+    DXGI_FORMAT_Y216                                    = 0x6D,
+    DXGI_FORMAT_NV11                                    = 0x6E,
+    DXGI_FORMAT_AI44                                    = 0x6F,
+    DXGI_FORMAT_IA44                                    = 0x70,
+    DXGI_FORMAT_P8                                      = 0x71,
+    DXGI_FORMAT_A8P8                                    = 0x72,
+    DXGI_FORMAT_B4G4R4A4_UNORM                          = 0x73,
+    DXGI_FORMAT_P208                                    = 0x74,
+    DXGI_FORMAT_V208                                    = 0x75,
+    DXGI_FORMAT_V408                                    = 0x76,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE         = 0xBD,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE = 0xBE,
+    DXGI_FORMAT_A4B4G4R4                                = 0xBF,
+    
+ // Android / iOS GL ENUMS 
+ // https://registry.khronos.org/OpenGL/api/GL/glext.h
+    GL_FALSE                                            = 0x0000,
+    GL_RGBA                                             = 0x1908,
+    GL_UNSIGNED_BYTE                                    = 0x1401,
+    GL_BGRA                                             = 0x80E1,
+    GL_R32F                                             = 0x822E,
+    GL_RED                                              = 0x1903,
+    GL_FLOAT                                            = 0x1406,
+    GL_RGBA16F                                          = 0x881A,
+    GL_HALF_FLOAT_OES                                   = 0x8D61,
+    GL_RGBA32F                                          = 0x8814,
+    GL_DEPTH_STENCIL                                    = 0x84F9,
+    GL_UNSIGNED_INT_24_8                                = 0x84FA,
+    GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                    = 0x83F1,
+    GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                    = 0x83F2,
+    GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                    = 0x83F3,
+    GL_ALPHA                                            = 0x1906,
+    GL_DEPTH_COMPONENT16_ARB_SGIX                       = 0x81A5,
+    GL_DEPTH_COMPONENT                                  = 0x1902,
+    GL_UNSIGNED_SHORT                                   = 0x1403,
+    GL_R16                                              = 0x822A,
+    GL_R8                                               = 0x8229,
+    GL_RGB                                              = 0x1907,
+    GL_UNSIGNED_SHORT_5_6_5                             = 0x8363,
+    GL_UNSIGNED_SHORT_5_5_5_1                           = 0x8034,
+    GL_UNSIGNED_SHORT_4_4_4_4                           = 0x8033,
+    GL_R8I                                              = 0x8231,
+    GL_RED_INTEGER                                      = 0x8D94,
+    GL_BYTE                                             = 0x1400,
+    GL_R16I                                             = 0x8233,
+    GL_SHORT                                            = 0x1402,
+    GL_R32I                                             = 0x8235,
+    GL_INT                                              = 0x1404,
+    GL_RGB10_A2                                         = 0x8059,
+    GL_UNSIGNED_INT_2_10_10_10_REV_EXT                  = 0x8368,
+    GL_RGBA16                                           = 0x805B,
+    GL_UNSIGNED_INT                                     = 0x1405,
+    GL_DEPTH_COMPONENT32F                               = 0x8CAC,
+    GL_LUMINANCE                                        = 0x1909,
+    GL_LUMINANCE_ALPHA                                  = 0x190A,
+    GL_ETC1_RGB8_OES                                    = 0x8D64,
+    GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG                 = 0x8C03,
+    GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG                 = 0x8C02,
+    GL_RGBA8UI                                          = 0x8D7C,
+    GL_RGBA_INTEGER                                     = 0x8D99,
+    GL_RG8UI                                            = 0x8238,
+    GL_RG_INTEGER                                       = 0x8228,
+    GL_RG16F                                            = 0x822F,
+    GL_RG                                               = 0x8227,
+    GL_R16F                                             = 0x822D,
+    GL_R11F_G11F_B10F                                   = 0x8C3A,
+    GL_UNSIGNED_INT_10F_11F_11F_REV                     = 0x8C3B,
+    GL_DEPTH32F_STENCIL8                                = 0x8CAD,
+    GL_FLOAT_32_UNSIGNED_INT_24_8_REV                   = 0x8DAD,
+    GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG                  = 0x8C00,
+    GL_COMPRESSED_RGBA8_ETC2_EAC                        = 0x9278,
+    GL_RG8                                              = 0x822B,
+    GL_COMPRESSED_R11_EAC                               = 0x9270,
+    GL_COMPRESSED_RG11_EAC                              = 0x9272,
+    GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2         = 0x9276,
+    GL_COMPRESSED_RGBA_ASTC_4x4                         = 0x93B0,
+    GL_COMPRESSED_RGBA_ASTC_5x4                         = 0x93B1,
+    GL_COMPRESSED_RGBA_ASTC_5x5                         = 0x93B2,
+    GL_COMPRESSED_RGBA_ASTC_6x5                         = 0x93B3,
+    GL_COMPRESSED_RGBA_ASTC_6x6                         = 0x93B4,
+    GL_COMPRESSED_RGBA_ASTC_8x5                         = 0x93B5,
+    GL_COMPRESSED_RGBA_ASTC_8x6                         = 0x93B6,
+    GL_COMPRESSED_RGBA_ASTC_8x8                         = 0x93B7,
+    GL_COMPRESSED_RGBA_ASTC_10x5                        = 0x93B8,
+    GL_COMPRESSED_RGBA_ASTC_10x6                        = 0x93B9,
+    GL_COMPRESSED_RGBA_ASTC_10x8                        = 0x93BA,
+    GL_COMPRESSED_RGBA_ASTC_10x10                       = 0x93BB,
+    GL_COMPRESSED_RGBA_ASTC_12x10                       = 0x93BC,
+    GL_COMPRESSED_RGBA_ASTC_12x12                       = 0x93BD,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4                 = 0x93D0,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4                 = 0x93D1,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5                 = 0x93D2,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5                 = 0x93D3,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6                 = 0x93D4,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5                 = 0x93D5,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6                 = 0x93D6,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8                 = 0x93D7,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5                = 0x93D8,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6                = 0x93D9,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8                = 0x93DA,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10               = 0x93DB,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10               = 0x93DC,
+    GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12               = 0x93DD,
+    
+ // Nintendo Switch ENUM for BNTX format 
+ // https://code.botw.link/uking/uking/lib/NintendoSDK/include/nn/gfx/gfx_Enum.h.html#nn::gfx::ChannelFormat
+    BNTX_R5G6B5_UNORM                                   =  0x0701,
+    BNTX_R5G5B5A1_UNORM                                 =  0x0501,
+    BNTX_R4G4B4A4_UNORM                                 =  0x0301,
+    
+ // Nintendo PICA 3DS 
+ // https://github.com/xdanieldzd/Tharsis/blob/master/Tharsis/Images/Pica.cs
+    PICA_RGBA                                           = 0x6752,
+    PICA_RGB                                            = 0x6754,
+    PICA_A                                              = 0x6756,
+    PICA_LUMINANCE                                      = 0x6757,
+    PICA_LUMINANCE_A                                    = 0x6758,
+    PICA_R16                                            = 0x6759,
+    PICA_ETC1_RGB8                                      = 0x675A,
+    PICA_ETC1_RGB8A4                                    = 0x675B,
+    PICA_UNORM_44_BYTE                                  = 0x6760,
+    PICA_UNORM_4_HALF_BYTE                              = 0x6761,
+    
+ // Sony PS3 SEC GXM format (faked to not conflict) 
+ // https://github.com/vitasdk/vita-headers/blob/master/include/psp2/gxm.h
+    SCE_GXM_TEXTURE_BASE_FORMAT_U2F10F10F10             = 0x549A,
+    SCE_GXM_TEXTURE_BASE_FORMAT_U4U4U4U4                = 0x5402,
+    SCE_GXM_TEXTURE_BASE_FORMAT_U8U8                    = 0x5407,
+    SCE_GXM_TEXTURE_BASE_FORMAT_P4                      = 0x5494,
+	SCE_GXM_TEXTURE_BASE_FORMAT_P8                      = 0x5495,
+    SCE_GXM_TEXTURE_BASE_FORMAT_PVRTII2BPP              = 0x5482,
+	SCE_GXM_TEXTURE_BASE_FORMAT_PVRTII4BPP              = 0x5483,
+    SCE_GXM_TEXTURE_SWIZZLE4_ABGR                       = 0x5500,
+    SCE_GXM_TEXTURE_SWIZZLE4_ARGB                       = 0x5501,
+    SCE_GXM_TEXTURE_SWIZZLE2_GRRR                       = 0x5702,
+    
+ // PS4 SEC format (faked to not conflict) 
+ // https://github.com/Inori/GPCS4/blob/master/GPCS4/Graphics/Gnm/GnmConstant.h
+    SEC_G8R8                                            = 0x5587,
+    SEC_R8                                              = 0x5585,
+    SEC_UNORM                                           = 0x5580,
+    SEC_R16                                             = 0x5584,
+    
+ // Wii GX format (faked to not conflict)  
+ // https://wiki.tockdom.com/wiki/Image_Formats
+    GX_TF_I4                                            = 0x5A00,
+    GX_TF_RGB5A3                                        = 0x5A05,
+    GX_TF_CI14                                          = 0x5A0A
+} TEX_ENUMS;
+
+typedef enum<uint32> 
+{
+    PS2      = 0x00, // Raw
+    PS3      = 0x01, // Table extracted
+    X360     = 0x02, // Table extracted
+    NWii     = 0x03, // Table extracted
+  //NDS      = 0x04, // <- didn't find a game with g1t files
+    N3DS     = 0x05, // Table extracted
+    PSVita   = 0x06, // Table extracted
+    Android  = 0x07, // Table extracted
+    iOS      = 0x08, // Table extracted
+    NWiiU    = 0x09, // Table extracted
+    Windows  = 0x0A, // Table extracted
+    PS4      = 0x0B, // Table extracted
+  //XOne     = 0x0C, // <- Need rom 
+    NSwitch  = 0x0D, // Table extracted
+  //XBSX     = 0x0E, // <- Need rom
+  //Linux    = 0x0F, // or SteamDeck maybe
+  //macOS    = 0x10, // Don't know system or number
+  //iPadOS   = 0x11, // Don't know system or number
+  //tvOS     = 0x12, // Don't know system or number
+    PS5      = 0x13, // Table extracted
+} PLATFORM;
+
+local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
+ //                                   v - I added this to the table (not found in client)                                     
+ // Internal|Color  |Data   |Bits per|Min byte
+ // format  |space  |type   |pixel   |size
+    0x1908, 0x1908, 0x1401, 0x20,    0x04, // 0x00 GL_RGBA GL_RGBA GL_UNSIGNED_BYTE
+    0x80E1, 0x80E1, 0x1401, 0x20,    0x04, // 0x01 GL_BGRA GL_BGRA GL_UNSIGNED_BYTE
+    0x822E, 0x1903, 0x1406, 0x20,    0x04, // 0x02 GL_R32F GL_RED GL_FLOAT
+    0x881A, 0x1908, 0x8D61, 0x40,    0x08, // 0x03 GL_RGBA16F GL_RGBA GL_HALF_FLOAT_OES
+    0x8814, 0x1908, 0x1406, 0x80,    0x10, // 0x04 GL_RGBA32F GL_RGBA GL_FLOAT
+    0x84F9, 0x84F9, 0x84FA, 0x20,    0x04, // 0x05 GL_DEPTH_STENCIL GL_DEPTH_STENCIL GL_UNSIGNED_INT_24_8 (d24s8)
+    0x83F1, 0x1908, 0x1401, 0x04,    0x08, // 0x06 GL_COMPRESSED_RGBA_S3TC_DXT1_EXT GL_RGBA GL_UNSIGNED_BYTE BC1
+    0x83F2, 0x1908, 0x1401, 0x08,    0x10, // 0x07 GL_COMPRESSED_RGBA_S3TC_DXT3_EXT GL_RGBA GL_UNSIGNED_BYTE BC2
+    0x83F3, 0x1908, 0x1401, 0x08,    0x10, // 0x08 GL_COMPRESSED_RGBA_S3TC_DXT5_EXT GL_RGBA GL_UNSIGNED_BYTE BC3
+    0x1B,   0x1C,   0x1D,   0x20,    0x04, // 0x09 DXGI_FORMAT_R8G8B8A8_TYPELESS DXGI_FORMAT_R8G8B8A8_UNORM DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+    0x5A,   0x57,   0x5B,   0x20,    0x04, // 0x0A DXGI_FORMAT_B8G8R8A8_TYPELESS DXGI_FORMAT_B8G8R8A8_UNORM DXGI_FORMAT_B8G8R8A8_UNORM_SRGB
+    0x27,   0x29,   0x29,   0x20,    0x04, // 0x0B DXGI_FORMAT_R32_TYPELESS DXGI_FORMAT_R32_FLOAT DXGI_FORMAT_R32_FLOAT
+    0x09,   0x0A,   0x0A,   0x40,    0x08, // 0x0C DXGI_FORMAT_R16G16B16A16_TYPELESS DXGI_FORMAT_R16G16B16A16_FLOAT DXGI_FORMAT_R16G16B16A16_FLOAT
+    0x01,   0x02,   0x02,   0x80,    0x10, // 0x0D DXGI_FORMAT_R32G32B32A32_TYPELESS DXGI_FORMAT_R32G32B32A32_FLOAT DXGI_FORMAT_R32G32B32A32_FLOAT 
+    0x549A, 0x5500, 0x5500, 0x20,    0x04, // 0x0E SCE_GXM_TEXTURE_FORMAT_U2F10F10F10_SWIZZLE4_ABGR
+    0x1906, 0x1906, 0x1401, 0x08,    0x01, // 0x0F GL_ALPHA GL_ALPHA GL_UNSIGNED_BYTE
+    0x46,   0x47,   0x48,   0x04,    0x08, // 0x10 DXGI_FORMAT_BC1_TYPELESS DXGI_FORMAT_BC1_UNORM DXGI_FORMAT_BC1_UNORM_SRGB DXT1 (PSV Swizzle & sometimes flip)
+    0x49,   0x4A,   0x4B,   0x08,    0x10, // 0x11 DXGI_FORMAT_BC2_TYPELESS DXGI_FORMAT_BC2_UNORM DXGI_FORMAT_BC2_UNORM_SRGB DXT2 / DXT3 (PSV Swizzle & sometimes flip)
+    0x4C,   0x4D,   0x4E,   0x08,    0x10, // 0x12 DXGI_FORMAT_BC3_TYPELESS DXGI_FORMAT_BC3_UNORM DXGI_FORMAT_BC3_UNORM_SRGB DXT4 / DXT5 (PSV Swizzle & sometimes flip)
+    0x2C,   0x2E,   0x2D,   0x20,    0x04, // 0x13 DXGI_FORMAT_R24G8_TYPELESS DXGI_FORMAT_R24_UNORM_X8_TYPELESS DXGI_FORMAT_D24_UNORM_S8_UINT
+    0x81A5, 0x1902, 0x1403, 0x10,    0x02, // 0x14 GL_DEPTH_COMPONENT16_ARB_SGIX GL_DEPTH_COMPONENT GL_UNSIGNED_SHORT (r16)
+    0x35,   0x38,   0x37,   0x10,    0x02, // 0x15 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_UNORM DXGI_FORMAT_D16_UNORM
+    0x822A, 0x1903, 0x1403, 0x10,    0x02, // 0x16 GL_R16 GL_RED GL_UNSIGNED_SHORT
+    0x35,   0x38,   0x38,   0x10,    0x02, // 0x17 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_UNORM DXGI_FORMAT_R16_UNORM
+    0x41,   0x41,   0x41,   0x08,    0x01, // 0x18 DXGI_FORMAT_A8_UNORM DXGI_FORMAT_A8_UNORM DXGI_FORMAT_A8_UNORM
+    0x55,   0x55,   0x55,   0x10,    0x02, // 0x19 DXGI_FORMAT_B5G6R5_UNORM DXGI_FORMAT_B5G6R5_UNORM DXGI_FORMAT_B5G6R5_UNORM
+    0x56,   0x56,   0x56,   0x10,    0x02, // 0x1A DXGI_FORMAT_B5G5R5A1_UNORM DXGI_FORMAT_B5G5R5A1_UNORM DXGI_FORMAT_B5G5R5A1_UNORM
+    0x5402, 0x5501, 0x5501, 0x10,    0x02, // 0x1B SCE_GXM_TEXTURE_FORMAT_U4U4U4U4_SWIZZLE4_ARGB
+    0x55,   0x55,   0x55,   0x10,    0x02, // 0x1C DXGI_FORMAT_B5G6R5_UNORM DXGI_FORMAT_B5G6R5_UNORM DXGI_FORMAT_B5G6R5_UNORM
+    0x56,   0x56,   0x56,   0x10,    0x02, // 0x1D DXGI_FORMAT_B5G5R5A1_UNORM DXGI_FORMAT_B5G5R5A1_UNORM DXGI_FORMAT_B5G5R5A1_UNORM
+    0x5402, 0x5501, 0x5501, 0x10,    0x02, // 0x1E SCE_GXM_TEXTURE_FORMAT_U4U4U4U4_SWIZZLE4_ARGB
+    0x822E, 0x1903, 0x1406, 0x20,    0x04, // 0x1F GL_R32F GL_RED GL_FLOAT
+    0x27,   0x29,   0x29,   0x20,    0x04, // 0x20 DXGI_FORMAT_R32_TYPELESS DXGI_FORMAT_R32_FLOAT DXGI_FORMAT_R32_FLOAT
+    0x80E1, 0x80E1, 0x1401, 0x20,    0x04, // 0x21 GL_BGRA GL_BGRA GL_UNSIGNED_BYTE
+    0x5C,   0x58,   0x5D,   0x20,    0x04, // 0x22 DXGI_FORMAT_B8G8R8X8_TYPELESS DXGI_FORMAT_B8G8R8X8_UNORM DXGI_FORMAT_B8G8R8X8_UNORM_SRGB
+    0x21,   0x23,   0x23,   0x20,    0x04, // 0x23 DXGI_FORMAT_R16G16_TYPELESS DXGI_FORMAT_R16G16_UNORM DXGI_FORMAT_R16G16_UNORM 
+    0x21,   0x23,   0x23,   0x20,    0x04, // 0x24 DXGI_FORMAT_R16G16_TYPELESS DXGI_FORMAT_R16G16_UNORM DXGI_FORMAT_R16G16_UNORM (same as above but had a 0 bpp error)
+    0x5A05, 0x5A05, 0x5A05, 0x10,    0x02, // 0x25 GX_TF_RGB5A3 GX_TF_RGB5A3 GX_TF_RGB5A3 (Wii)
+    0x5587, 0x5587, 0x5580, 0x10,    0x02, // 0x26 SEC_G8R8 SEC_G8R8 SEC_UNORM
+    0x5407, 0x5702, 0x5702, 0x10,    0x02, // 0x27 SCE_GXM_TEXTURE_FORMAT_U8U8_SWIZZLE2_GRRR (g8r8)
+    0x5585, 0x5585, 0x5580, 0x08,    0x01, // 0x28 SEC_R8 SEC_R8 SEC_UNORM 
+    0x5585, 0x5585, 0x5580, 0x08,    0x01, // 0x29 SEC_R8 SEC_R8 SEC_UNORM (dupe of 0x28 so might have another thing going on)
+    0x8229, 0x1903, 0x1401, 0x08,    0x01, // 0x2A GL_R8 GL_RED GL_UNSIGNED_BYTE
+    0x6757, 0x6757, 0x6761, 0x04,    0x01, // 0x2B PICA_LUMINANCE PICA_LUMINANCE PICA_UNORM_4_HALF_BYTE
+    0x6757, 0x6757, 0x1401, 0x08,    0x01, // 0x2C PICA_LUMINANCE PICA_LUMINANCE GL_UNSIGNED_BYTE
+    0x6758, 0x6758, 0x6760, 0x08,    0x01, // 0x2D PICA_LUMINANCE_A PICA_LUMINANCE_A PICA_UNORM_44_BYTE
+    0x6758, 0x6758, 0x1401, 0x08,    0x01, // 0x2E PICA_LUMINANCE_A PICA_LUMINANCE_A GL_UNSIGNED_BYTE
+    0x5A00, 0x5A00, 0x5A00, 0x04,    0x01, // 0x2F GX_TF_I4 GX_TF_I4 GX_TF_I4
+    0x5585, 0x5585, 0x5580, 0x08,    0x01, // 0x30 SCE_GXM_TEXTURE_FORMAT_U8_SWIZZLE1_111R (r8)
+    0x5494, 0x5500, 0x5500, 0x04,    0x01, // 0x31 SCE_GXM_TEXTURE_FORMAT_P4_SWIZZLE4_ABGR (CI4)  (a8b8g8r8)
+    0x5495, 0x5500, 0x5500, 0x08,    0x01, // 0x32 SCE_GXM_TEXTURE_FORMAT_P8_SWIZZLE4_ABGR (CI8) (a8b8g8r8)
+    0x5A0A, 0x5A0A, 0x5A0A, 0x10,    0x02, // 0x33 GX_TF_CI14 GX_TF_CI14 GX_TF_CI14
+    0x1907, 0x1907, 0x8363, 0x10,    0x02, // 0x34 GL_RGB GL_RGB GL_UNSIGNED_SHORT_5_6_5     b5g6r5
+    0x1908, 0x1908, 0x8034, 0x10,    0x02, // 0x35 GL_RGBA GL_RGBA GL_UNSIGNED_SHORT_5_5_5_1 a1b5g5r5
+    0x1908, 0x1908, 0x8033, 0x10,    0x02, // 0x36 GL_RGBA GL_RGBA GL_UNSIGNED_SHORT_4_4_4_4 a4b4g4r4
+    0x5494, 0x5500, 0x5500, 0x04,    0x01, // 0x37 SCE_GXM_TEXTURE_FORMAT_P4_SWIZZLE4_ABGR (a8b8g8r8)
+    0x8231, 0x8D94, 0x1400, 0x08,    0x01, // 0x38 GL_R8I GL_RED_INTEGER GL_BYTE
+    0x8233, 0x8D94, 0x1402, 0x10,    0x02, // 0x39 GL_R16I GL_RED_INTEGER GL_SHORT
+    0x8235, 0x8D94, 0x1404, 0x20,    0x04, // 0x3A GL_R32I GL_RED_INTEGER GL_INT
+    0x0701, 0x0701, 0x0701, 0x10,    0x02, // 0x3B BNTX_R5G6B5_UNORM BNTX_R5G6B5_UNORM, BNTX_R5G6B5_UNORM      (found in switch)
+    0x0501, 0x0501, 0x0501, 0x10,    0x02, // 0x3C BNTX_R5G5B5A1_UNORM BNTX_R5G5B5A1_UNORM BNTX_R5G5B5A1_UNORM (found in switch)
+    0x0301, 0x0301, 0x0301, 0x10,    0x02, // 0x3D BNTX_R4G4B4A4_UNORM BNTX_R4G4B4A4_UNORM BNTX_R4G4B4A4_UNORM (found in switch)
+    0x8233, 0x8D94, 0x1402, 0x10,    0x02, // 0x3E GL_R16I GL_RED_INTEGER GL_SHORT (likely 0x39 dupe)
+    0x8235, 0x8D94, 0x1404, 0x20,    0x04, // 0x3F GL_R32I GL_RED_INTEGER GL_INT   (likely 0x3A dupe)
+    0x8059, 0x1908, 0x8368, 0x20,    0x02, // 0x40 GL_RGB10_A2 GL_RGBA GL_UNSIGNED_INT_2_10_10_10_REV
+    0x805B, 0x1908, 0x1403, 0x40,    0x08, // 0x41 GL_RGBA16_EXT GL_RGBA GL_UNSIGNED_SHORT
+    0x18,   0x18,   0x18,   0x20,    0x02, // 0x42 DXGI_FORMAT_R10G10B10A2_UNORM DXGI_FORMAT_R10G10B10A2_UNORM DXGI_FORMAT_R10G10B10A2_UNORM
+    0x09,   0x0B,   0x0B,   0x40,    0x08, // 0x43 DXGI_FORMAT_R16G16B16A16_TYPELESS DXGI_FORMAT_R16G16B16A16_UNORM DXGI_FORMAT_R16G16B16A16_UNORM 
+    0x6756, 0x6756, 0x6761, 0x04,    0x01, // 0x44 PICA_A PICA_A PICA_UNORM_4_HALF_BYTE (3DS)
+    0x1907, 0x1907, 0x1401, 0x18,    0x03, // 0x45 GL_RGB GL_RGB GL_UNSIGNED_BYTE       (3DS) (PS Vita swizzle 32x32 tiles)
+    0x31,   0x31,   0x31,   0x10,    0x02, // 0x46 DXGI_FORMAT_R8G8_UNORM DXGI_FORMAT_R8G8_UNORM DXGI_FORMAT_R8G8_UNORM (3DS Swizzle)
+    0x675A, 0x675A, 0x1907, 0x04,    0x08, // 0x47 PICA_ETC1_RGB8 PICA_ETC1_RGB8 GL_RGB 
+    0x675B, 0x675B, 0x1908, 0x04,    0x10, // 0x48 PICA_ETC1_RGB8A4 PICA_ETC1_RGB8A4 GL_RGBA (has 2 block per to account for the alpha)
+    0x1907, 0x1907, 0x1401, 0x18,    0x03, // 0x49 GL_RGB GL_RGB GL_UNSIGNED_BYTE
+    0x1902, 0x1902, 0x1405, 0x18,    0x03, // 0x4A GL_DEPTH_COMPONENT GL_DEPTH_COMPONENT GL_UNSIGNED_INT (r8g8b8a) (also 3DS)
+    0x1902, 0x1902, 0x1405, 0x18,    0x03, // 0x4B GL_DEPTH_COMPONENT GL_DEPTH_COMPONENT GL_UNSIGNED_INT (r8g8b8a) (like a dupe of above)
+    0x0F,   0x10,   0x10,   0x40,    0x08, // 0x4C DXGI_FORMAT_R32G32_TYPELESS DXGI_FORMAT_R32G32_FLOAT DXGI_FORMAT_R32G32_FLOAT
+    0x0F,   0x10,   0x10,   0x40,    0x08, // 0x4D DXGI_FORMAT_R32G32_TYPELESS DXGI_FORMAT_R32G32_FLOAT DXGI_FORMAT_R32G32_FLOAT
+    0x8CAC, 0x1902, 0x1406, 0x20,    0x04, // 0x4E GL_DEPTH_COMPONENT32F GL_DEPTH_COMPONENT GL_FLOAT (R32F)
+    0x27,   0x29,   0x28,   0x20,    0x04, // 0x4F DXGI_FORMAT_R32_TYPELESS DXGI_FORMAT_R32_FLOAT DXGI_FORMAT_D32_FLOAT
+    0x5482, 0x5500, 0x5500, 0x02,    0x08, // 0x50 SCE_GXM_TEXTURE_FORMAT_PVRTII2BPP_SWIZZLE4_ABGR
+    0x5482, 0x5500, 0x5500, 0x02,    0x08, // 0x51 SCE_GXM_TEXTURE_FORMAT_PVRTII2BPP_SWIZZLE4_ABGR
+    0x5483, 0x5500, 0x5500, 0x04,    0x10, // 0x52 SCE_GXM_TEXTURE_FORMAT_PVRTII4BPP_SWIZZLE4_ABGR
+    0x5483, 0x5500, 0x5500, 0x04,    0x10, // 0x53 SCE_GXM_TEXTURE_FORMAT_PVRTII4BPP_SWIZZLE4_ABGR 
+    0x1909, 0x1909, 0x1401, 0x08,    0x01, // 0x54 GL_LUMINANCE GL_LUMINANCE GL_UNSIGNED_BYTE
+    0x190A, 0x190A, 0x1401, 0x10,    0x02, // 0x55 GL_LUMINANCE_ALPHA GL_LUMINANCE_ALPHA GL_UNSIGNED_BYTE (also seen as G8R8)
+    0x8D64, 0x1907, 0x1401, 0x04,    0x08, // 0x56 GL_ETC1_RGB8_OES GL_RGB GL_UNSIGNED_BYTE
+    0x8C03, 0x1908, 0x1401, 0x02,    0x08, // 0x57 GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG GL_RGBA GL_UNSIGNED_BYTE
+    0x8C02, 0x1908, 0x1401, 0x04,    0x10, // 0x58 GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG GL_RGBA GL_UNSIGNED_BYTE
+    0x83F1, 0x1908, 0x1401, 0x04,    0x08, // 0x59 GL_COMPRESSED_RGBA_S3TC_DXT1_EXT GL_RGBA GL_UNSIGNED_BYTE (BC1)
+    0x83F2, 0x1908, 0x1401, 0x08,    0x10, // 0x5A GL_COMPRESSED_RGBA_S3TC_DXT3_EXT GL_RGBA GL_UNSIGNED_BYTE (BC2)
+    0x83F3, 0x1908, 0x1401, 0x08,    0x10, // 0x5B GL_COMPRESSED_RGBA_S3TC_DXT5_EXT GL_RGBA GL_UNSIGNED_BYTE (BC3)
+    0x4F,   0x50,   0x50,   0x04,    0x08, // 0x5C DXGI_FORMAT_BC4_TYPELESS DXGI_FORMAT_BC4_UNORM DXGI_FORMAT_BC4)_UNORM 
+    0x52,   0x53,   0x53,   0x08,    0x10, // 0x5D DXGI_FORMAT_BC5_TYPELESS DXGI_FORMAT_BC5_UNORM DXGI_FORMAT_BC5_UNORM
+    0x5E,   0x5F,   0x5F,   0x08,    0x10, // 0x5E DXGI_FORMAT_BC6H_TYPELESS DXGI_FORMAT_BC6H_UF16 DXGI_FORMAT_BC6H_UF16
+    0x61,   0x62,   0x63,   0x08,    0x10, // 0x5F DXGI_FORMAT_BC7_TYPELESS DXGI_FORMAT_BC7_UNORM DXGI_FORMAT_BC7_UNORM_SRGB  
+    0x46,   0x47,   0x48,   0x04,    0x08, // 0x60 DXGI_FORMAT_BC1_TYPELESS DXGI_FORMAT_BC1_UNORM DXGI_FORMAT_BC1_UNORM_SRGB  DXT1 (PS4 swizzle)
+    0x49,   0x4A,   0x4B,   0x08,    0x10, // 0x61 DXGI_FORMAT_BC2_TYPELESS DXGI_FORMAT_BC2_UNORM DXGI_FORMAT_BC2_UNORM_SRGB  DXT2 / DXT3 (PS4 swizzle)
+    0x4C,   0x4D,   0x4E,   0x04,    0x10, // 0x62 DXGI_FORMAT_BC3_TYPELESS DXGI_FORMAT_BC3_UNORM DXGI_FORMAT_BC3_UNORM_SRGB  DXT4 / DXT5 (PS4 swizzle)
+    0x4F,   0x50,   0x50,   0x04,    0x08, // 0x63 DXGI_FORMAT_BC4_TYPELESS DXGI_FORMAT_BC4_UNORM DXGI_FORMAT_BC4_UNORM ATI1  (swizzled)
+    0x52,   0x53,   0x53,   0x08,    0x10, // 0x64 DXGI_FORMAT_BC5_TYPELESS DXGI_FORMAT_BC5_UNORM DXGI_FORMAT_BC5_UNORM ATI2  (swizzled)
+    0x5E,   0x5F,   0x5F,   0x08,    0x10, // 0x65 DXGI_FORMAT_BC6H_TYPELESS DXGI_FORMAT_BC6H_UF16 DXGI_FORMAT_BC6H_UF16      (swizzled)
+    0x61,   0x62,   0x63,   0x08,    0x10, // 0x66 DXGI_FORMAT_BC7_TYPELESS DXGI_FORMAT_BC7_UNORM DXGI_FORMAT_BC7_UNORM_SRGB  (swizzled)
+    0x8D7C, 0x8D99, 0x1401, 0x20,    0x04, // 0x67 GL_RGBA8UI GL_RGBA_INTEGER GL_UNSIGNED_BYTE
+    0x8238, 0x8228, 0x1401, 0x10,    0x02, // 0x68 GL_RG8UI GL_RG_INTEGER GL_UNSIGNED_BYTE
+    0x822F, 0x8227, 0x8D61, 0x20,    0x04, // 0x69 GL_RG16F GL_RG GL_HALF_FLOAT_OES
+    0x822D, 0x1903, 0x8D61, 0x10,    0x02, // 0x6A GL_R16F GL_RED GL_HALF_FLOAT_OES
+    0x8C3A, 0x1907, 0x8C3B, 0x20,    0x04, // 0x6B GL_R11F_G11F_B10F GL_RGB GL_UNSIGNED_INT_10F_11F_11F_REV
+    0x8CAD, 0x1902, 0x8DAD, 0x40,    0x08, // 0x6C GL_DEPTH32F_STENCIL8 GL_DEPTH_COMPONENT GL_FLOAT_32_UNSIGNED_INT_24_8_REV (r32b8x24)
+    0x13,   0x15,   0x14,   0x40,    0x08, // 0x6D DXGI_FORMAT_R32G8X24_TYPELESS DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS DXGI_FORMAT_D32_FLOAT_S8X24_UINT 
+    0x5584, 0x5584, 0x5580, 0x10,    0x02, // 0x6E SEC_R16 SEC_R16 SEC_UNORM
+    0x8D64, 0x1907, 0x1401, 0x08,    0x10, // 0x6F GL_ETC1_RGB8_OES GL_RGB GL_UNSIGNED_BYTE (alpha under, bpp adjusted)
+    0x8C00, 0x1907, 0x1401, 0x08,    0x10, // 0x70 GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG GL_RGB GL_UNSIGNED_BYTE
+    0x9278, 0x1908, 0x1401, 0x08,    0x10, // 0x71 GL_COMPRESSED_RGBA8_ETC2_EAC GL_RGBA GL_UNSIGNED_BYTE
+    0x8229, 0x1903, 0x1401, 0x08,    0x01, // 0x72 GL_R8 GL_RED GL_UNSIGNED_BYTE
+    0x822B, 0x8227, 0x1401, 0x10,    0x02, // 0x73 GL_RG8 GL_RG GL_UNSIGNED_BYTE
+    0x1B,   0x1E,   0x1E,   0x20,    0x04, // 0x74 DXGI_FORMAT_R8G8B8A8_TYPELESS DXGI_FORMAT_R8G8B8A8_UINT DXGI_FORMAT_R8G8B8A8_UINT
+    0x30,   0x32,   0x32,   0x10,    0x02, // 0x75 DXGI_FORMAT_R8G8_TYPELESS DXGI_FORMAT_R8G8_UINT DXGI_FORMAT_R8G8_UINT
+    0x21,   0x22,   0x22,   0x10,    0x02, // 0x76 DXGI_FORMAT_R16G16_TYPELESS DXGI_FORMAT_R16G16_FLOAT DXGI_FORMAT_R16G16_FLOAT
+    0x35,   0x36,   0x36,   0x10,    0x02, // 0x77 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_FLOAT DXGI_FORMAT_R16_FLOAT
+    0x1A,   0x1A,   0x1A,   0x20,    0x04, // 0x78 DXGI_FORMAT_R11G11B10_FLOAT GL_HALF_FLOAT_OES GL_HALF_FLOAT_OES
+    0x5584, 0x5584, 0x5580, 0x10,    0x02, // 0x79 SEC_R16 SEC_R16 SEC_UNORM (dupe of 0x6E so something else might be going on)
+    0x9270, 0x1903, 0x1401, 0x04,    0x08, // 0x7A GL_COMPRESSED_R11_EAC GL_RED GL_UNSIGNED_BYTE
+    0x9272, 0x8227, 0x1401, 0x08,    0x10, // 0x7B GL_COMPRESSED_RG11_EAC GL_RG GL_UNSIGNED_BYTE
+    0x9276, 0x1908, 0x1401, 0x04,    0x08, // 0x7C GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 GL_RGBA GL_UNSIGNED_BYTE
+    0x93B0, 0x1908, 0x1401, 0x08,    0x10, // 0x7D  ASTC uses ASTC_SUB format
+    0x0,    0x0,    0x0,    0x0,     0x0 , // 0x7E  (unknown)
+    0x0,    0x0,    0x0,    0x0,     0x0   // 0x7F  (unknown)
+};
+
+local ushort ASTC_SUB[70]<hidden=true> = {
+ // Internal|Color  |Data   |Bits per|Min byte
+ // format  |space  |type   |size    |size
+    0x93B0, 0x1908, 0x1401, 0x0008,  0x10, // 0x00 GL_COMPRESSED_RGBA_ASTC_4x4    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B1, 0x1908, 0x1401, 0x0628,  0x10, // 0x01 GL_COMPRESSED_RGBA_ASTC_5x4    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B2, 0x1908, 0x1401, 0x050C,  0x10, // 0x02 GL_COMPRESSED_RGBA_ASTC_5x5    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B3, 0x1908, 0x1401, 0x041B,  0x10, // 0x03 GL_COMPRESSED_RGBA_ASTC_6x5    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B4, 0x1908, 0x1401, 0x0338,  0x10, // 0x04 GL_COMPRESSED_RGBA_ASTC_6x6    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B5, 0x1908, 0x1401, 0x0314,  0x10, // 0x05 GL_COMPRESSED_RGBA_ASTC_8x5    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B6, 0x1908, 0x1401, 0x0243,  0x10, // 0x06 GL_COMPRESSED_RGBA_ASTC_8x6    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B7, 0x1908, 0x1401, 0x0002,  0x10, // 0x07 GL_COMPRESSED_RGBA_ASTC_8x8    GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B8, 0x1908, 0x1401, 0x020D,  0x10, // 0x08 GL_COMPRESSED_RGBA_ASTC_10x5   GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B9, 0x1908, 0x1401, 0x0100,  0x10, // 0x09 GL_COMPRESSED_RGBA_ASTC_10x6   GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93BA, 0x1908, 0x1401, 0x013C,  0x10, // 0x0A GL_COMPRESSED_RGBA_ASTC_10x8   GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93BB, 0x1908, 0x1401, 0x011C,  0x10, // 0x0B GL_COMPRESSED_RGBA_ASTC_10x10  GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93BC, 0x1908, 0x1401, 0x0107,  0x10, // 0x0C GL_COMPRESSED_RGBA_ASTC_12x10  GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93BD, 0x1908, 0x1401, 0x01F5,  0x10  // 0x0D GL_COMPRESSED_RGBA_ASTC_12x12  GL_RGBA  GL_UNSIGNED_BYTE 
+};
+
+typedef enum<ushort>
+{
+ // These are sometime directly hardcoded to the client.
+ // Meaning that they don't appear in the file, 
+ // but are hardcodes on every g1t the game reads
+    NORMAL_MAP          = 0x03,
+    N3DS_Wii_SWIZZLE    = 0x05,
+    WiiU_SWIZZLE        = 0x06,
+    PS4_PLANE_ARRAY     = 0x07,
+    PSVITA_PS5_SWIZZLE  = 0x08,
+    ASTC_TYPE           = 0x15
+} TEX_ATTR_TYPE;
+
+enum<ubyte> S_GT1_LOAD_TYPE
+{
+    PLANAR      = 0,
+    CUBE        = 1,
+    VOLUME      = 2,
+    PLANE_ARRAY = 3,
+    CUBE_ARRAY  = 4     // ver 63 and above
+};
+
+   // Function for ASTC bit size
+float MakeBBP(short value) 
+{
+ // special function that can convert a short to a float
+    if (value > 255) 
+    {
+     // Extract high byte (whole part) and low byte (decimal part)
+        local int wholePart = (value >> 8) & 0xFF;       // Most significant byte
+        local byte decimalPart = value & 0xFF;           // Least significant byte
+
+     // Combine into a float (decimal part scaled to two decimal places)
+        return wholePart + (decimalPart / 100.0f);
+    } 
+    else 
+    {
+     // For values <= 255, just return as a float
+        return (float)(value);
+    }
+}
+
+struct ktgl 
+{
+ // Magic check for endian systems
+    if(ReadUInt() == 0x47543147)
+    {
+        BigEndian();
+    }
+    
+    struct 
+    {
+        struct 
+        {
+            uint FULL_MAGIC<hidden=true>; 
+            local char MAGIC[4] ={
+                (FULL_MAGIC >> 24 ) & 0xFF,
+                (FULL_MAGIC >> 16 ) & 0xFF,
+                (FULL_MAGIC >> 8  ) & 0xFF,
+                 FULL_MAGIC         & 0xFF
+            }; 
+            uint VERSION;
+            local uint VERSION_NUMBER = 
+            (((VERSION >> 24) & 0xFF) - 0x30) * 1000 +
+            (((VERSION >> 16) & 0xFF) - 0x30) * 100+
+            (((VERSION >> 8 ) & 0xFF) - 0x30) * 10+
+              (VERSION        & 0xFF) - 0x30;        
+        } MAGICS<bgcolor=cDkRed>;
+        uint32 FILE_SIZE<bgcolor=cBlack>;
+        uint32 TEX_OFFSET<comment="Offset table address", bgcolor=cLtRed,format=hex>;
+        uint32 TEX_COUNT<comment="Number of textures", bgcolor=cLtGreen, fgcolor=cWhite>;
+        local int HEADER_SIZE = 20;
+        if (MAGICS.VERSION_NUMBER < 30)
+        {
+         // hard codes SYSTEM to 0;
+         // No S_G1T_HEADER_EX
+            local PLATFORM SYSTEM = 0;
+            local uint HEADER_EX_SIZE = 0;
+            FSkip(4);
+        } 
+        else if (MAGICS.VERSION_NUMBER < 50)
+        {
+            PLATFORM SYSTEM<fgcolor=cAqua>;
+         // No S_G1T_HEADER_EX
+            local uint32 HEADER_EX_SIZE = 0;
+            HEADER_SIZE += 4;
+        } 
+        else 
+        {
+            PLATFORM SYSTEM<fgcolor=cAqua>;
+            uint32 HEADER_EX_SIZE<bgcolor=cLtBlue>;
+            HEADER_SIZE += 8;
+        }
+        local string SYSTEM_STR<hidden=true>;
+        switch (SYSTEM)
+        {
+            case PS2:
+                SYSTEM_STR = "PS2";
+                break;
+            case PS3:
+                SYSTEM_STR = "PS3";
+                break;
+            case X360:
+                SYSTEM_STR = "XBOX 360";
+                break;
+            case NWii:
+                SYSTEM_STR = "Nintendo Wii";
+                break;
+            case N3DS:
+                SYSTEM_STR = "Nintendo 3DS";
+                break;
+            case PSVita:
+                SYSTEM_STR = "PS Vita";
+                break;
+            case Android:
+                SYSTEM_STR = "Android";
+                break;
+            case iOS:
+                SYSTEM_STR = "iOS";
+                break;
+            case NWiiU:
+                SYSTEM_STR = "Nintendo Wii U";
+                break;
+            case Windows:
+                SYSTEM_STR = "Windows";
+                break;
+            case PS4: 
+                SYSTEM_STR = "PS4";
+                break;
+            case NSwitch:
+                SYSTEM_STR = "Nintendo Switch";
+                break;
+            case PS5:
+                SYSTEM_STR = "PS5";
+                break;
+            default:
+                SYSTEM_STR = Str("Unknown System 0x%02X", SYSTEM);
+                break;
+        }
+    } S_G1T_HEADER<read=Str("%c%c%c%c v%d - %s",MAGICS.MAGIC[0],MAGICS.MAGIC[1],MAGICS.MAGIC[2],MAGICS.MAGIC[3], MAGICS.VERSION_NUMBER, this.SYSTEM_STR)>;
+    
+ // Read offsets
+    struct
+    {
+        uint16 TYPE<fgcolor=cAqua, comment="21 for ASTC, also found 7 in AOT2 ps4, 5 in 3DS, also found programming for 3 here as normal">;
+        ubyte  COUNT<bgcolor=cBlack>; 
+        ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
+    }S_G1T_TEX_ATTR_HEADER[S_G1T_HEADER.TEX_COUNT]<comment="Likely deprecated">;
+
+    uint32 S_G1T_SKIP_TABLE[S_G1T_HEADER.TEX_COUNT]<comment="Likely deprecated, offets", fgcolor=cLtRed>;
+    
+    local int i <hidden=true> = 0;
+    
+    if(S_G1T_HEADER.HEADER_EX_SIZE != 0)
+    {
+        struct 
+        {
+            uint16 TYPE<fgcolor=cAqua, comment="21 for ASTC, also found 7 in AOT2 ps4, 5 in 3DS, also found programming for 3 here as normal">;
+            ubyte  COUNT<bgcolor=cBlack, fgcolor=cWhite>; 
+            ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
+         // 21 ASTC table
+            if (TYPE == ASTC_TYPE && COUNT == 1) 
+            {   
+                uint KT_ASTC_FORMAT<fgcolor=cAqua>;
+            } 
+            else if(TYPE == PS4_PLANE_ARRAY && COUNT == 32)
+            {   
+             // unsure what this is, Vector bases?
+                uint ID1;
+                float FLOAT1[4];
+                uint ID2;
+                float FLOAT2[4];
+                uint ID3;
+                float FLOAT3[5];
+                uint ID4;
+                float FLOAT4[4];
+                uint ID5;
+                float FLOAT5[4];
+                uint ID6;
+                float FLOAT6[5];
+            } 
+            else 
+            {
+             // unsure at the moment how this other data is used
+                uint EXTRA_INTS[COUNT]<comment="Sometimes used as KIDs">;
+            }
+        }S_G1T_HEADER_EX[S_G1T_HEADER.TEX_COUNT]<comment="Sometimes called S_G1T_TEX_ATTR_HEADER", fgcolor=cLtBlue, optimize=false>;
+    }
+    
+    i = 0;
+    local int returnto <hidden=true> =  FTell();  //  fABLE[0] + S_G1T_HEADER.TEX_OFFSET;
+    local int readloc <hidden=true> = returnto;
+    
+    for(i = 0; i < S_G1T_HEADER.TEX_COUNT;i++)
+    {
+        FSeek(returnto);
+        struct S_G1T_TEX 
+        {
+            struct 
+            {
+                S_GT1_LOAD_TYPE KTGL_TEXTURE_TYPE : 4; // >> 4
+                ubyte MIP_COUNT: 4; // & 0xF
+                ubyte KTGL_PIXEL_FORMAT<fgcolor=cAqua, format=hex>;
+             // ASTC table
+                if(S_G1T_HEADER.HEADER_EX_SIZE != 0 && S_G1T_HEADER_EX[i].TYPE == ASTC_TYPE)
+                { 
+                    local TEX_ENUMS TEX_FORMAT = ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5];
+                    local TEX_ENUMS TEX_SPACE =  ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 1];
+                    local TEX_ENUMS DATA_TYPE =  ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 2];
+                    local float BPP =    MakeBBP(ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 3]);
+                    local uint MIN_BYTES =       ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 4];
+                } 
+                else 
+                {
+                    local TEX_ENUMS TEX_FORMAT = TEX_FORMS[KTGL_PIXEL_FORMAT * 5];
+                    local TEX_ENUMS TEX_SPACE =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 1];
+                    local TEX_ENUMS DATA_TYPE =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 2];
+                    local float BPP =     MakeBBP(TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 3]);
+                    local uint MIN_BYTES =       TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 4];
+                }
+                byte PACKED_WIDTH: 4,      // +2 >> 4
+                     PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>;   // +2 & 0xF
+                byte PACKED_DEPTH: 4<comment="Or Faces">, // +3>> 4
+                     READ_G1T_HEADER_EX : 4<comment="Likely the starting INT in the extras">; // + 3 & 0xF 
+                byte KTGL_GD_TEXADDRESS1: 4, // +4 > 4
+                     KTGL_GD_TEXADDRESS2: 4; // +4 & 0xF>
+                byte KTGL_GD_TEXADDRESS3: 4, // +5 >> 4 
+                     KTGL_GD_TEXFILTER1: 4; // +5 & 0xF
+                byte KTGL_GD_TEXFILTER2: 4, // +6 >> 4
+                     KTGL_GD_MIPFILTER1: 4;  // +6 & 0xF
+                byte KTGL_GD_MIPFILTER2: 4<comment="For volume, uses unknown10's first 4 bits">, // +7 >> 4
+                     HAS_TEX_EX_HEADER: 4;  // +7 & 0xF
+            } S_G1T_TEX_HEADER<fgcolor=cLtGreen, open=true>;
+            
+            local uint32 WIDTH = 1 << S_G1T_TEX_HEADER.PACKED_WIDTH;
+            local uint32 HEIGHT = 1 << S_G1T_TEX_HEADER.PACKED_HEIGHT;
+        
+            if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER > 0)
+            {
+                struct 
+                {
+                 // alot here is not read or used
+                    short  S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
+                    ubyte  RESERVED6;// +2
+                    ubyte  RESERVED7;// +3
+                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">; // 4-8
+                    ushort EX_MIP_COUNT: 4<comment="MINI_MIP_LEVELS">, // +8 >> 4
+                           EX_DEPTH : 12<fgcolor=cLtGreen>;
+                    ubyte  RESERVED14; //  +10
+                    ubyte  KTGL_GD_COLOR_SPACE<fgcolor=cAqua, comment="0x01 = srgb_from_linear">; // +11
+                 // hard codes the full values if not power of 2
+                    if (S_G1T_TEX_HEADER_EX_SIZE >= 0x10) 
+                    {
+                        int EX_WIDTH;
+                        if( EX_WIDTH != 0) WIDTH = EX_WIDTH;
+                    }
+                    if (S_G1T_TEX_HEADER_EX_SIZE >= 0x14) 
+                    {
+                        int EX_HEIGHT;
+                        if( EX_HEIGHT != 0) HEIGHT = EX_HEIGHT;
+                    }
+                 // I havent seen a S_G1T_TEX_HEADER_EX with a size over 12
+                    if (S_G1T_TEX_HEADER_EX_SIZE != 0xC && S_G1T_TEX_HEADER_EX_SIZE != 0x14) 
+                    {
+                        Printf("extra tex version is not zero but data might be missing\n");
+                    }
+                } S_G1T_TEX_HEADER_EX<fgcolor=cLtBlue, open=true>;
+            } 
+            else 
+            {
+                if(ReadUInt() == 0x0C || ReadUInt() == 0x14) 
+                {
+                    Printf("extra tex version is zero but data might be present\n");
+                }
+            }            
+            
+            local uint64 offset<hidden=true> = FTell();
+            local uint64 bufferLen<hidden=true> = FileSize();
+   
+            local byte NORMALIZED = S_G1T_TEX_ATTR_HEADER[i].TYPE == 3 ? true : false;
+            
+         // Normals can also be found here
+            if (S_G1T_HEADER.HEADER_EX_SIZE != 0 &&
+                S_G1T_HEADER_EX[i].TYPE == NORMAL_MAP)
+            {
+                 NORMALIZED = true;
+            }
+            
+            local uint64 COMPUTED_SIZE = WIDTH * HEIGHT * (S_G1T_TEX_HEADER.BPP / 8);
+            local uint64 DEPTH = 1 << S_G1T_TEX_HEADER.PACKED_DEPTH;
+            local uint64 FIRST_MIP = COMPUTED_SIZE;
+            local uint64 MIPS = S_G1T_TEX_HEADER.MIP_COUNT;
+            
+            if( S_G1T_HEADER.HEADER_EX_SIZE != 0 && 
+                S_G1T_TEX_HEADER_EX.EX_MIP_COUNT != 0)
+            {
+                MIPS = S_G1T_TEX_HEADER_EX.EX_MIP_COUNT;
+            }
+            
+         // Adjust Depth
+            if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == PLANAR)
+            {
+                DEPTH = 1;
+            }  
+            else  if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == PLANE_ARRAY)
+            {
+                if ( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER &&
+                     S_G1T_TEX_HEADER_EX.EX_DEPTH)
+                {
+                    DEPTH = S_G1T_TEX_HEADER_EX.EX_DEPTH;
+                }
+            } 
+            else if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == VOLUME)
+            {
+             // sometimes hardcoded to 32
+                if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER &&
+                    S_G1T_TEX_HEADER_EX.EX_DEPTH != 0)
+                {
+                    DEPTH = 1 << S_G1T_TEX_HEADER.EX_DEPTH;
+                }
+            } 
+            else if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == CUBE ||
+                S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == CUBE_ARRAY)
+            {
+                if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER &&
+                    S_G1T_TEX_HEADER_EX.EX_DEPTH)
+                {
+                    DEPTH = 6 * S_G1T_TEX_HEADER_EX.EX_DEPTH;
+                } 
+                else if(DEPTH < 6)
+                {
+                    DEPTH = 6;
+                }
+            }
+            
+         // Sanity check for smallest block size
+            if (COMPUTED_SIZE < S_G1T_TEX_HEADER.MIN_BYTES) 
+            {
+                COMPUTED_SIZE = S_G1T_TEX_HEADER.MIN_BYTES;
+                FIRST_MIP = COMPUTED_SIZE;
+            }
+            
+         // account for MIPS
+            local uint64 mip_size<hidden=true> = FIRST_MIP;
+            local int j <hidden=true> = 0;
+            for(j = 1; j < S_G1T_TEX_HEADER.MIP_COUNT; j++) // Skip the first entry which is the full-sized texture    
+            {
+                mip_size >>= 2;
+                if(mip_size < S_G1T_TEX_HEADER.MIN_BYTES) // Sanity for smallest block size
+                {
+                    mip_size = S_G1T_TEX_HEADER.MIN_BYTES;
+                }
+                COMPUTED_SIZE += mip_size;
+            }
+            
+         // add DEPTH
+            if (DEPTH > 1)
+            {
+                COMPUTED_SIZE *= DEPTH;
+            }
+            
+         // Add special handlers
+            switch (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT)
+            {
+                case 0x06:
+                    local int bNeedsX360EndianSwap = 1;
+                    break;
+                case 0x48:
+                    local int b3DSAlpha = 1;
+                    break;
+                case 0x5C:
+                case 0x5D:
+                case 0x5E:
+                case 0x5F:
+                case 0x62:
+                case 0x63:
+                case 0x64:
+                case 0x65:
+                    NORMALIZED = false;
+                    break;
+                case 0x6F:
+                 // Offsets on this format are off
+                 // BPP is adjusted for size but not the height
+                    local int bSpecialCaseETC<comment="Alpha Atlas"> = 1;  
+                    HEIGHT *= 2;
+                    break;
+                case 0x71:
+                    local int bETCAlpha = 1;
+                    break;
+                default:
+                    break;
+            }
+            
+         // Sanity check on texture data size
+            if(S_G1T_HEADER.TEX_COUNT == 1)
+            {
+             // If there is only one texture, check if there is extra data and meet it
+                if(offset + COMPUTED_SIZE < bufferLen)
+                {
+                    Printf(Str("Extra data found on texture %d, format might be incorrect.\n", i + 1));
+                    COMPUTED_SIZE = bufferLen - offset;
+                }
+            } 
+            else 
+            {
+             // If there is more than one, check if it's not the last
+                if(i < S_G1T_HEADER.TEX_COUNT - 1)
+                {
+                    local uint64 expected_offset = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
+                    local uint64 dif<hidden=true> = expected_offset - (offset + COMPUTED_SIZE);
+                 // Check if the size matchs the next texture.
+                 // if not, adjust based on if over or under.
+                    if(expected_offset != offset + COMPUTED_SIZE)
+                    {
+                     // If next expected offset is ahead, meet it. But check for max file size.
+                        if(expected_offset > offset + COMPUTED_SIZE)
+                        {
+                            Printf(Str("Data found on texture %d was less than expected, format might be incorrect.\n", i + 1));
+                            if(offset + COMPUTED_SIZE + dif <=  bufferLen)
+                            {
+                                COMPUTED_SIZE += dif;
+                            }
+                            else
+                            {
+                                Printf(Str("Data found on texture %d size difference more than the file size, format might be incorrect.\n", i + 1));
+                            }
+                        }
+                        else
+                     // If expected offset is under, warn and continue. But check for max file size.
+                        {
+                            if(!bSpecialCaseETC)
+                            {
+                                Printf(Str("Data found on texture %d was more than expected, format might be incorrect.\n", i + 1));
+                            }
+                        }
+                    }
+                } 
+                else 
+                {
+                 // If this is the last texture, check if there is extra data and meet it
+                    if(offset + COMPUTED_SIZE < bufferLen)
+                    {
+                        Printf(Str("Extra data found on texture %d, format might be incorrect.\n", i + 1));
+                        COMPUTED_SIZE = bufferLen - offset;
+                    }
+                }
+            }
+
+            ubyte TEX_DATA[COMPUTED_SIZE]<comment="Textures are stored with their mipmaps in this array", format=hex, open=suppress, bgcolor=cDkBlue, fgcolor=cLtAqua>;
+            returnto = FTell();
+        }S_G1T_TEX_ENTRY;
+    }
+}File<open=true>;

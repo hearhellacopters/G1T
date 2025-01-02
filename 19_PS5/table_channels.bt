@@ -1,0 +1,59 @@
+//------------------------------------------------
+//--- 010 Editor v14.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+// Couldn't find offical
+typedef enum <uint> {
+    RXXX        = 0x00000204,
+    XRXX        = 0x00000220, // R8_2
+    GRXX        = 0x00000225,
+    RGXX        = 0x0000022C,
+    XXRX        = 0x00000300, // R8
+    RRRX        = 0x00000324, // LUMINANCE
+    XGRX        = 0x00000328, // G8R8
+    BGRX        = 0x0000032E,
+    RGBX        = 0x000003AC,
+    XXXR        = 0x00000800,
+    RXXG        = 0x00000A04, // G8R8_2
+    RRRG        = 0x00000B24, // LUMINANCE_A
+    RGBA        = 0x00000FAC,
+    BGRA        = 0x00000F2E,
+} SceGxmChannelFormat;
+
+typedef enum <ushort> {
+    NONE     = 0,
+    NO_ALPHA = 1,
+    RED      = 4,
+    GREEN    = 5,
+    BLUE     = 6,
+    ALPHA    = 7
+}Channels;
+
+typedef struct (int i){
+    local int i<hidden=true> = i;
+    SceGxmChannelFormat data;
+    FSkip(-4);
+    Channels Channel1:3,
+             Channel2:3,
+             Channel3:3,
+             Channel4:3;
+    FSkip(2);
+} entry<read=Str("0x%02X, 0x%08X",this.i, this.data)>;
+local int i = 0;
+local int count = FileSize() / 4;
+LittleEndian();
+for (i = 0; i < count; i++){
+    if(ReadInt() == -1){
+        FSkip(4);
+    } else {
+        entry data(i)<open=true>;
+    };
+};
