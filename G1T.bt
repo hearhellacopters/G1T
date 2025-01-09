@@ -529,7 +529,7 @@ struct ktgl
  // Read offsets
     struct
     {
-        uint16 TYPE<fgcolor=cAqua, comment="21 for ASTC, also found 7 in AOT2 ps4, 5 in 3DS, also found programming for 3 here as normal">;
+        uint16 TYPE<fgcolor=cAqua>;
         ubyte  COUNT<bgcolor=cBlack>; 
         ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
     }S_G1T_TEX_ATTR_HEADER[S_G1T_HEADER.TEX_COUNT]<comment="Likely deprecated">;
@@ -542,7 +542,7 @@ struct ktgl
     {
         struct 
         {
-            uint16 TYPE<fgcolor=cAqua, comment="21 for ASTC, also found 7 in AOT2 ps4, 5 in 3DS, also found programming for 3 here as normal">;
+            uint16 TYPE<fgcolor=cAqua>;
             ubyte  COUNT<bgcolor=cBlack, fgcolor=cWhite>; 
             ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
          // 21 ASTC table
@@ -627,9 +627,7 @@ struct ktgl
                 struct 
                 {
                  // alot here is not read or used
-                    short  S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
-                    ubyte  RESERVED6;// +2
-                    ubyte  RESERVED7;// +3
+                    uint32  S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
                     float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">; // 4-8
                     ushort EX_MIP_COUNT: 4<comment="MINI_MIP_LEVELS">, // +8 >> 4
                            EX_DEPTH : 12<fgcolor=cLtGreen>;
