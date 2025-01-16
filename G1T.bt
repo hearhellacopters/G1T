@@ -5,10 +5,11 @@
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
 //   Version: 1.6
 //   Purpose: Parsing G1T texture containers
-//  Category: OO_Asset
+//  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   1.7    2024-12-16  HearHellacopters: Added Mac build info
 //   1.6    2024-12-16  HearHellacopters: Rewrite with updated formats to enums
 //   1.5    2023-11-04  HearHellacopters: Added bpp for formats size
 //   1.4    2019-11-28  HearHellacopters: Edit better looping
@@ -211,25 +212,22 @@ typedef enum <ushort>
 typedef enum<uint32> 
 {
     PS2      = 0x00, // Raw
-    PS3      = 0x01, // Table extracted
-    X360     = 0x02, // Table extracted
-    NWii     = 0x03, // Table extracted
-  //NDS      = 0x04, // <- didn't find a game with g1t files
-    N3DS     = 0x05, // Table extracted
-    PSVita   = 0x06, // Table extracted
-    Android  = 0x07, // Table extracted
-    iOS      = 0x08, // Table extracted
-    NWiiU    = 0x09, // Table extracted
-    Windows  = 0x0A, // Table extracted
-    PS4      = 0x0B, // Table extracted
-  //XOne     = 0x0C, // <- Need rom 
-    NSwitch  = 0x0D, // Table extracted
-  //XBSX     = 0x0E, // <- Need rom
-  //Linux    = 0x0F, // or SteamDeck maybe
-  //macOS    = 0x10, // Don't know system or number
-  //iPadOS   = 0x11, // Don't know system or number
-  //tvOS     = 0x12, // Don't know system or number
+    PS3      = 0x01, // Special Tiled Z Morton Swizzling
+    X360     = 0x02, // Extra Special Tiling Swizzling
+    NWii     = 0x03, // 
+  //NDS      = 0x??, // <- didn't find a game with g1t files
+    N3DS     = 0x05, // 
+    PSVita   = 0x06, // 
+    Android  = 0x07, // 
+    iOS      = 0x08, // 
+    NWiiU    = 0x09, // Big Endian
+    WinMac   = 0x0A, // They share the same enum
+    PS4      = 0x0B, // Special Z Morton Swizzling
+  //XOne     = 0x??, // <- Need rom 
+    NSwitch  = 0x0D, // 
+  //XBSX     = 0x??, // <- Need rom
     PS5      = 0x13, // Table extracted
+  //??       = 0x17  // check for max
 } PLATFORM;
 
 local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
@@ -369,20 +367,20 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
 local ushort ASTC_SUB[70]<hidden=true> = {
  // Internal|Color  |Data   |Bits per|Min byte
  // format  |space  |type   |size    |size
-    0x93B0, 0x1908, 0x1401, 0x0008,  0x10, // 0x00 GL_COMPRESSED_RGBA_ASTC_4x4    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B1, 0x1908, 0x1401, 0x0628,  0x10, // 0x01 GL_COMPRESSED_RGBA_ASTC_5x4    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B2, 0x1908, 0x1401, 0x050C,  0x10, // 0x02 GL_COMPRESSED_RGBA_ASTC_5x5    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B3, 0x1908, 0x1401, 0x041B,  0x10, // 0x03 GL_COMPRESSED_RGBA_ASTC_6x5    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B4, 0x1908, 0x1401, 0x0338,  0x10, // 0x04 GL_COMPRESSED_RGBA_ASTC_6x6    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B5, 0x1908, 0x1401, 0x0314,  0x10, // 0x05 GL_COMPRESSED_RGBA_ASTC_8x5    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B6, 0x1908, 0x1401, 0x0243,  0x10, // 0x06 GL_COMPRESSED_RGBA_ASTC_8x6    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B7, 0x1908, 0x1401, 0x0002,  0x10, // 0x07 GL_COMPRESSED_RGBA_ASTC_8x8    GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B8, 0x1908, 0x1401, 0x020D,  0x10, // 0x08 GL_COMPRESSED_RGBA_ASTC_10x5   GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93B9, 0x1908, 0x1401, 0x0100,  0x10, // 0x09 GL_COMPRESSED_RGBA_ASTC_10x6   GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93BA, 0x1908, 0x1401, 0x013C,  0x10, // 0x0A GL_COMPRESSED_RGBA_ASTC_10x8   GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93BB, 0x1908, 0x1401, 0x011C,  0x10, // 0x0B GL_COMPRESSED_RGBA_ASTC_10x10  GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93BC, 0x1908, 0x1401, 0x0107,  0x10, // 0x0C GL_COMPRESSED_RGBA_ASTC_12x10  GL_RGBA  GL_UNSIGNED_BYTE 
-    0x93BD, 0x1908, 0x1401, 0x01F5,  0x10  // 0x0D GL_COMPRESSED_RGBA_ASTC_12x12  GL_RGBA  GL_UNSIGNED_BYTE 
+    0x93B0, 0x1908, 0x1401, 0x0008,  0x10, // 0x00 GL_COMPRESSED_RGBA_ASTC_4x4    GL_RGBA  GL_UNSIGNED_BYTE 8.00
+    0x93B1, 0x1908, 0x1401, 0x0628,  0x10, // 0x01 GL_COMPRESSED_RGBA_ASTC_5x4    GL_RGBA  GL_UNSIGNED_BYTE 6.40
+    0x93B2, 0x1908, 0x1401, 0x050C,  0x10, // 0x02 GL_COMPRESSED_RGBA_ASTC_5x5    GL_RGBA  GL_UNSIGNED_BYTE 5.12
+    0x93B3, 0x1908, 0x1401, 0x041B,  0x10, // 0x03 GL_COMPRESSED_RGBA_ASTC_6x5    GL_RGBA  GL_UNSIGNED_BYTE 4.27
+    0x93B4, 0x1908, 0x1401, 0x0338,  0x10, // 0x04 GL_COMPRESSED_RGBA_ASTC_6x6    GL_RGBA  GL_UNSIGNED_BYTE 3.56
+    0x93B5, 0x1908, 0x1401, 0x0314,  0x10, // 0x05 GL_COMPRESSED_RGBA_ASTC_8x5    GL_RGBA  GL_UNSIGNED_BYTE 3.20
+    0x93B6, 0x1908, 0x1401, 0x0243,  0x10, // 0x06 GL_COMPRESSED_RGBA_ASTC_8x6    GL_RGBA  GL_UNSIGNED_BYTE 2.67
+    0x93B7, 0x1908, 0x1401, 0x0002,  0x10, // 0x07 GL_COMPRESSED_RGBA_ASTC_8x8    GL_RGBA  GL_UNSIGNED_BYTE 2.00
+    0x93B8, 0x1908, 0x1401, 0x020D,  0x10, // 0x08 GL_COMPRESSED_RGBA_ASTC_10x5   GL_RGBA  GL_UNSIGNED_BYTE 2.56
+    0x93B9, 0x1908, 0x1401, 0x0100,  0x10, // 0x09 GL_COMPRESSED_RGBA_ASTC_10x6   GL_RGBA  GL_UNSIGNED_BYTE 2.13
+    0x93BA, 0x1908, 0x1401, 0x013C,  0x10, // 0x0A GL_COMPRESSED_RGBA_ASTC_10x8   GL_RGBA  GL_UNSIGNED_BYTE 1.60
+    0x93BB, 0x1908, 0x1401, 0x011C,  0x10, // 0x0B GL_COMPRESSED_RGBA_ASTC_10x10  GL_RGBA  GL_UNSIGNED_BYTE 1.28
+    0x93BC, 0x1908, 0x1401, 0x0107,  0x10, // 0x0C GL_COMPRESSED_RGBA_ASTC_12x10  GL_RGBA  GL_UNSIGNED_BYTE 1.07
+    0x93BD, 0x1908, 0x1401, 0x01F5,  0x10  // 0x0D GL_COMPRESSED_RGBA_ASTC_12x12  GL_RGBA  GL_UNSIGNED_BYTE 0.89
 };
 
 typedef enum<ushort>
@@ -508,8 +506,8 @@ struct ktgl
             case NWiiU:
                 SYSTEM_STR = "Nintendo Wii U";
                 break;
-            case Windows:
-                SYSTEM_STR = "Windows";
+            case WinMac:
+                SYSTEM_STR = "Windows / Mac";
                 break;
             case PS4: 
                 SYSTEM_STR = "PS4";
@@ -617,7 +615,7 @@ struct ktgl
                      KTGL_GD_MIPFILTER1: 4;  // +6 & 0xF
                 byte KTGL_GD_MIPFILTER2: 4<comment="For volume, uses unknown10's first 4 bits">, // +7 >> 4
                      HAS_TEX_EX_HEADER: 4;  // +7 & 0xF
-            } S_G1T_TEX_HEADER<fgcolor=cLtGreen, open=true>;
+            } S_G1T_TEX_HEADER<fgcolor=cLtGreen, open=true, optimize=false>;
             
             local uint32 WIDTH = 1 << S_G1T_TEX_HEADER.PACKED_WIDTH;
             local uint32 HEIGHT = 1 << S_G1T_TEX_HEADER.PACKED_HEIGHT;
@@ -649,7 +647,7 @@ struct ktgl
                     {
                         Printf("extra tex version is not zero but data might be missing\n");
                     }
-                } S_G1T_TEX_HEADER_EX<fgcolor=cLtBlue, open=true>;
+                } S_G1T_TEX_HEADER_EX<fgcolor=cLtBlue, open=true, optimize=false>;
             } 
             else 
             {
@@ -676,7 +674,7 @@ struct ktgl
             local uint64 FIRST_MIP = COMPUTED_SIZE;
             local uint64 MIPS = S_G1T_TEX_HEADER.MIP_COUNT;
             
-            if( S_G1T_HEADER.HEADER_EX_SIZE != 0 && 
+            if( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER != 0 && 
                 S_G1T_TEX_HEADER_EX.EX_MIP_COUNT != 0)
             {
                 MIPS = S_G1T_TEX_HEADER_EX.EX_MIP_COUNT;
@@ -744,14 +742,18 @@ struct ktgl
                 COMPUTED_SIZE *= DEPTH;
             }
             
+            local int bNeedsX360EndianSwap = 0;
+            local int b3DSAlpha = 0;
+            local int bSpecialCaseETC<comment="Alpha Atlas"> = 0;
+            local int bETCAlpha = 0;
          // Add special handlers
             switch (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT)
             {
                 case 0x06:
-                    local int bNeedsX360EndianSwap = 1;
+                    bNeedsX360EndianSwap = 1;
                     break;
                 case 0x48:
-                    local int b3DSAlpha = 1;
+                    b3DSAlpha = 1;
                     break;
                 case 0x5C:
                 case 0x5D:
@@ -766,11 +768,11 @@ struct ktgl
                 case 0x6F:
                  // Offsets on this format are off
                  // BPP is adjusted for size but not the height
-                    local int bSpecialCaseETC<comment="Alpha Atlas"> = 1;  
+                    bSpecialCaseETC = 1;  
                     HEIGHT *= 2;
                     break;
                 case 0x71:
-                    local int bETCAlpha = 1;
+                    bETCAlpha = 1;
                     break;
                 default:
                     break;
