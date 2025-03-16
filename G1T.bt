@@ -3,12 +3,13 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 1.6
+//   Version: 1.8
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   1.8    2025-03-16  HearHellacopters: Added ASTC check
 //   1.7    2024-12-16  HearHellacopters: Added Mac build info
 //   1.6    2024-12-16  HearHellacopters: Rewrite with updated formats to enums
 //   1.5    2023-11-04  HearHellacopters: Added bpp for formats size
@@ -224,7 +225,7 @@ typedef enum<uint32>
     WinMac   = 0x0A, // They share the same enum
     PS4      = 0x0B, // Special Z Morton Swizzling
   //XOne     = 0x??, // <- Need rom 
-    NSwitch  = 0x0D, // 
+    NSwitch  = 0x10, // 
   //XBSX     = 0x??, // <- Need rom
     PS5      = 0x13, // Table extracted
   //??       = 0x17  // check for max
@@ -360,13 +361,13 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
     0x9272, 0x8227, 0x1401, 0x08,    0x10, // 0x7B GL_COMPRESSED_RG11_EAC GL_RG GL_UNSIGNED_BYTE
     0x9276, 0x1908, 0x1401, 0x04,    0x08, // 0x7C GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 GL_RGBA GL_UNSIGNED_BYTE
     0x93B0, 0x1908, 0x1401, 0x08,    0x10, // 0x7D  ASTC uses ASTC_SUB format
-    0x0,    0x0,    0x0,    0x0,     0x0 , // 0x7E  (unknown)
+    0x0,    0x0,    0x0,    0x0,     0x0 , // 0x7E  also ASTC uses ASTC_SUB format
     0x0,    0x0,    0x0,    0x0,     0x0   // 0x7F  (unknown)
 };
 
 local ushort ASTC_SUB[70]<hidden=true> = {
  // Internal|Color  |Data   |Bits per|Min byte
- // format  |space  |type   |size    |size
+ // format  |space  |type   |pixel   |size
     0x93B0, 0x1908, 0x1401, 0x0008,  0x10, // 0x00 GL_COMPRESSED_RGBA_ASTC_4x4    GL_RGBA  GL_UNSIGNED_BYTE 8.00
     0x93B1, 0x1908, 0x1401, 0x0628,  0x10, // 0x01 GL_COMPRESSED_RGBA_ASTC_5x4    GL_RGBA  GL_UNSIGNED_BYTE 6.40
     0x93B2, 0x1908, 0x1401, 0x050C,  0x10, // 0x02 GL_COMPRESSED_RGBA_ASTC_5x5    GL_RGBA  GL_UNSIGNED_BYTE 5.12
@@ -527,7 +528,7 @@ struct ktgl
  // Read offsets
     struct
     {
-        uint16 TYPE<fgcolor=cAqua>;
+        TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;
         ubyte  COUNT<bgcolor=cBlack>; 
         ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
     }S_G1T_TEX_ATTR_HEADER[S_G1T_HEADER.TEX_COUNT]<comment="Likely deprecated">;
@@ -540,7 +541,7 @@ struct ktgl
     {
         struct 
         {
-            uint16 TYPE<fgcolor=cAqua>;
+            TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;
             ubyte  COUNT<bgcolor=cBlack, fgcolor=cWhite>; 
             ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
          // 21 ASTC table
@@ -587,20 +588,28 @@ struct ktgl
                 ubyte MIP_COUNT: 4; // & 0xF
                 ubyte KTGL_PIXEL_FORMAT<fgcolor=cAqua, format=hex>;
              // ASTC table
-                if(S_G1T_HEADER.HEADER_EX_SIZE != 0 && S_G1T_HEADER_EX[i].TYPE == ASTC_TYPE)
+                if( (KTGL_PIXEL_FORMAT - 0x7D) < 2 )
                 { 
-                    local TEX_ENUMS TEX_FORMAT = ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5];
-                    local TEX_ENUMS TEX_SPACE =  ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 1];
-                    local TEX_ENUMS DATA_TYPE =  ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 2];
-                    local float BPP =    MakeBBP(ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 3]);
-                    local uint MIN_BYTES =       ASTC_SUB[S_G1T_HEADER_EX[i].KT_ASTC_FORMAT * 5 + 4];
+                    if(S_G1T_HEADER.HEADER_EX_SIZE != 0 && S_G1T_HEADER_EX[i].TYPE == ASTC_TYPE)
+                    {
+                        local int ASTC_FORMAT = S_G1T_HEADER_EX[i].KT_ASTC_FORMAT;
+                    }
+                    else
+                    {
+                        local int ASTC_FORMAT = 0x0D; // hardccoded 12_12
+                    }
+                    local TEX_ENUMS TEX_FORMAT = ASTC_SUB[ASTC_FORMAT * 5];
+                    local TEX_ENUMS TEX_SPACE =  ASTC_SUB[ASTC_FORMAT * 5 + 1];
+                    local TEX_ENUMS DATA_TYPE =  ASTC_SUB[ASTC_FORMAT * 5 + 2];
+                    local float BPP =    MakeBBP(ASTC_SUB[ASTC_FORMAT * 5 + 3]);
+                    local uint MIN_BYTES =       ASTC_SUB[ASTC_FORMAT * 5 + 4];
                 } 
                 else 
                 {
                     local TEX_ENUMS TEX_FORMAT = TEX_FORMS[KTGL_PIXEL_FORMAT * 5];
                     local TEX_ENUMS TEX_SPACE =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 1];
                     local TEX_ENUMS DATA_TYPE =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 2];
-                    local float BPP =     MakeBBP(TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 3]);
+                    local float BPP =    MakeBBP(TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 3]);
                     local uint MIN_BYTES =       TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 4];
                 }
                 byte PACKED_WIDTH: 4,      // +2 >> 4
