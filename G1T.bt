@@ -3,12 +3,13 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 1.8
+//   Version: 1.9
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   1.9    2025-03-29  HearHellacopters: Fixed mips and added Ronin swizzle flag
 //   1.8    2025-03-16  HearHellacopters: Added ASTC check
 //   1.7    2024-12-16  HearHellacopters: Added Mac build info
 //   1.6    2024-12-16  HearHellacopters: Rewrite with updated formats to enums
@@ -106,7 +107,7 @@ typedef enum <ushort>
     GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                    = 0x83F2,
     GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                    = 0x83F3,
     GL_ALPHA                                            = 0x1906,
-    GL_DEPTH_COMPONENT16_ARB_SGIX                       = 0x81A5,
+    GL_DEPTH_COMPONENT16                                = 0x81A5,
     GL_DEPTH_COMPONENT                                  = 0x1902,
     GL_UNSIGNED_SHORT                                   = 0x1403,
     GL_R16                                              = 0x822A,
@@ -255,7 +256,7 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
     0x49,   0x4A,   0x4B,   0x08,    0x10, // 0x11 DXGI_FORMAT_BC2_TYPELESS DXGI_FORMAT_BC2_UNORM DXGI_FORMAT_BC2_UNORM_SRGB DXT2 / DXT3 (PSV Swizzle & sometimes flip)
     0x4C,   0x4D,   0x4E,   0x08,    0x10, // 0x12 DXGI_FORMAT_BC3_TYPELESS DXGI_FORMAT_BC3_UNORM DXGI_FORMAT_BC3_UNORM_SRGB DXT4 / DXT5 (PSV Swizzle & sometimes flip)
     0x2C,   0x2E,   0x2D,   0x20,    0x04, // 0x13 DXGI_FORMAT_R24G8_TYPELESS DXGI_FORMAT_R24_UNORM_X8_TYPELESS DXGI_FORMAT_D24_UNORM_S8_UINT
-    0x81A5, 0x1902, 0x1403, 0x10,    0x02, // 0x14 GL_DEPTH_COMPONENT16_ARB_SGIX GL_DEPTH_COMPONENT GL_UNSIGNED_SHORT (r16)
+    0x81A5, 0x1902, 0x1403, 0x10,    0x02, // 0x14 GL_DEPTH_COMPONENT16 GL_DEPTH_COMPONENT GL_UNSIGNED_SHORT (r16)
     0x35,   0x38,   0x37,   0x10,    0x02, // 0x15 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_UNORM DXGI_FORMAT_D16_UNORM
     0x822A, 0x1903, 0x1403, 0x10,    0x02, // 0x16 GL_R16 GL_RED GL_UNSIGNED_SHORT
     0x35,   0x38,   0x38,   0x10,    0x02, // 0x17 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_UNORM DXGI_FORMAT_R16_UNORM
@@ -615,14 +616,14 @@ struct ktgl
                 byte PACKED_WIDTH: 4,      // +2 >> 4
                      PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>;   // +2 & 0xF
                 byte PACKED_DEPTH: 4<comment="Or Faces">, // +3>> 4
-                     READ_G1T_HEADER_EX : 4<comment="Likely the starting INT in the extras">; // + 3 & 0xF 
+                     READ_G1T_HEADER_EX : 4; // + 3 & 0xF 
                 byte KTGL_GD_TEXADDRESS1: 4, // +4 > 4
                      KTGL_GD_TEXADDRESS2: 4; // +4 & 0xF>
                 byte KTGL_GD_TEXADDRESS3: 4, // +5 >> 4 
                      KTGL_GD_TEXFILTER1: 4; // +5 & 0xF
                 byte KTGL_GD_TEXFILTER2: 4, // +6 >> 4
                      KTGL_GD_MIPFILTER1: 4;  // +6 & 0xF
-                byte KTGL_GD_MIPFILTER2: 4<comment="For volume, uses unknown10's first 4 bits">, // +7 >> 4
+                byte KTGL_GD_MIPFILTER2: 4, // +7 >> 4
                      HAS_TEX_EX_HEADER: 4;  // +7 & 0xF
             } S_G1T_TEX_HEADER<fgcolor=cLtGreen, open=true, optimize=false>;
             
@@ -634,11 +635,11 @@ struct ktgl
                 struct 
                 {
                  // alot here is not read or used
-                    uint32  S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
+                    uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
                     float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">; // 4-8
                     ushort EX_MIP_COUNT: 4<comment="MINI_MIP_LEVELS">, // +8 >> 4
                            EX_DEPTH : 12<fgcolor=cLtGreen>;
-                    ubyte  RESERVED14; //  +10
+                    ubyte  RONIN_SIZZLE<comment="512 x 4 tile of a 512 x 256 block">; //  +10
                     ubyte  KTGL_GD_COLOR_SPACE<fgcolor=cAqua, comment="0x01 = srgb_from_linear">; // +11
                  // hard codes the full values if not power of 2
                     if (S_G1T_TEX_HEADER_EX_SIZE >= 0x10) 
@@ -733,16 +734,20 @@ struct ktgl
             }
             
          // account for MIPS
-            local uint64 mip_size<hidden=true> = FIRST_MIP;
+            local int mip_width<hidden=true>  = (WIDTH  / 2);
+            local int mip_height<hidden=true> = (HEIGHT / 2);
+            local uint64 mip_size<hidden=true> = (mip_width * mip_height) * (S_G1T_TEX_HEADER.BPP / 8);
             local int j <hidden=true> = 0;
             for(j = 1; j < S_G1T_TEX_HEADER.MIP_COUNT; j++) // Skip the first entry which is the full-sized texture    
             {
-                mip_size >>= 2;
                 if(mip_size < S_G1T_TEX_HEADER.MIN_BYTES) // Sanity for smallest block size
                 {
                     mip_size = S_G1T_TEX_HEADER.MIN_BYTES;
                 }
                 COMPUTED_SIZE += mip_size;
+                mip_width  = (mip_width  / 2);
+                mip_height = (mip_height / 2);
+                mip_size = (mip_width * mip_height) * (S_G1T_TEX_HEADER.BPP / 8);
             }
             
          // add DEPTH
