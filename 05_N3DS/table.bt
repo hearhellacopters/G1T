@@ -134,7 +134,6 @@ typedef enum <ushort>
     DXGI_FORMAT_V408 = 0x76,
     
     // Android / iOS GL ENUMS https://registry.khronos.org/OpenGL/api/GL/glext.h
-    GL_FALSE = 0x0,
     GL_RGBA = 0x1908,
     GL_UNSIGNED_BYTE = 0x1401,
     GL_BGRA = 0x80E1,
@@ -243,9 +242,16 @@ typedef struct (int i){
     local int i2 = i;
     TEX_ENUMS data[2]<open=true>;
     float bpp;
-}entry<read=Str("0x%02x - 0x%04x / 0x%04x BPP: %f",this.i2, this.data[0], this.data[1], this.bpp)>;
+}entry<read=Str("0x%02x",this.i2)>;
 local int i = 0;
 local int count = 0x6c;
+LittleEndian();
 for (i = 0; i < count; i++){
-    entry data(i)<open=true, optimize=false>;
+    if(ReadUInt() == 0)
+    {
+        FSkip(8);
+    }
+    else{
+        entry data(i)<open=true, optimize=false>;
+    }
 };

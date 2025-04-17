@@ -46,7 +46,7 @@ typedef struct (int i){
              Channel3:3,
              Channel4:3;
     FSkip(2);
-} entry<read=Str("0x%02X, 0x%08X",this.i, this.data)>;
+} entry<read=Str("0x%02X",this.i)>;
 local int i = 0;
 local int count = FileSize() / 4;
 LittleEndian();

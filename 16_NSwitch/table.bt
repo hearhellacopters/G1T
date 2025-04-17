@@ -12,7 +12,7 @@
 //------------------------------------------------
 typedef enum <uint>
 {
-  ImageFormat_Undefined = 0x0,
+  //ImageFormat_Undefined = 0x0,
   ImageFormat_R8_Unorm = 0x201,
   ImageFormat_R8_Snorm = 0x202,
   ImageFormat_R8_Uint = 0x203,
@@ -233,5 +233,12 @@ local int i = 0;
 local int count = FileSize() / 28;
 LittleEndian();
 for (i = 0; i < count; i++){
-    entry data(i)<open=true, optimize=false>;
+    if(ReadUInt() == 0)
+    {
+        FSkip(28);
+    }
+    else
+    {
+        entry data(i)<open=true, optimize=false>;
+    }
 };

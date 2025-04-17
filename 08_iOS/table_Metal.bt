@@ -1,0 +1,304 @@
+//------------------------------------------------
+//--- 010 Editor v15.0.2 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+typedef enum <uint32> 
+{
+MTLPixelFormatInvalid = 0,
+
+    /* Normal 8 bit formats */
+    
+    MTLPixelFormatA8Unorm      = 1,
+
+    MTLPixelFormatR8Unorm      = 10,
+    MTLPixelFormatR8Unorm_sRGB = 11, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+
+    MTLPixelFormatR8Snorm      = 12,
+    MTLPixelFormatR8Uint       = 13,
+    MTLPixelFormatR8Sint       = 14,
+    
+    /* Normal 16 bit formats */
+
+    MTLPixelFormatR16Unorm     = 20,
+    MTLPixelFormatR16Snorm     = 22,
+    MTLPixelFormatR16Uint      = 23,
+    MTLPixelFormatR16Sint      = 24,
+    MTLPixelFormatR16Float     = 25,
+
+    MTLPixelFormatRG8Unorm      = 30,
+    MTLPixelFormatRG8Unorm_sRGB = 31, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatRG8Snorm      = 32,
+    MTLPixelFormatRG8Uint       = 33,
+    MTLPixelFormatRG8Sint       = 34,
+
+    /* Packed 16 bit formats */
+    
+    MTLPixelFormatB5G6R5Unorm  = 40, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatA1BGR5Unorm  = 41, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatABGR4Unorm   = 42, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatBGR5A1Unorm  = 43, // API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst)
+
+    /* Normal 32 bit formats */
+
+    MTLPixelFormatR32Uint  = 53,
+    MTLPixelFormatR32Sint  = 54,
+    MTLPixelFormatR32Float = 55,
+
+    MTLPixelFormatRG16Unorm  = 60,
+    MTLPixelFormatRG16Snorm  = 62,
+    MTLPixelFormatRG16Uint   = 63,
+    MTLPixelFormatRG16Sint   = 64,
+    MTLPixelFormatRG16Float  = 65,
+
+    MTLPixelFormatRGBA8Unorm      = 70,
+    MTLPixelFormatRGBA8Unorm_sRGB = 71,
+    MTLPixelFormatRGBA8Snorm      = 72,
+    MTLPixelFormatRGBA8Uint       = 73,
+    MTLPixelFormatRGBA8Sint       = 74,
+    
+    MTLPixelFormatBGRA8Unorm      = 80,
+    MTLPixelFormatBGRA8Unorm_sRGB = 81,
+
+    /* Packed 32 bit formats */
+
+    MTLPixelFormatRGB10A2Unorm = 90,
+    MTLPixelFormatRGB10A2Uint  = 91,
+
+    MTLPixelFormatRG11B10Float = 92,
+    MTLPixelFormatRGB9E5Float  = 93,
+
+    MTLPixelFormatBGR10A2Unorm  = 94, // API_AVAILABLE(macos(10.13), ios(11.0)) 
+
+    MTLPixelFormatBGR10_XR      = 554, // API_AVAILABLE(ios(10.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatBGR10_XR_sRGB = 555, // API_AVAILABLE(ios(10.0)) API_UNAVAILABLE(macos, macCatalyst)
+
+    /* Normal 64 bit formats */
+
+    MTLPixelFormatRG32Uint  = 103,
+    MTLPixelFormatRG32Sint  = 104,
+    MTLPixelFormatRG32Float = 105,
+
+    MTLPixelFormatRGBA16Unorm  = 110,
+    MTLPixelFormatRGBA16Snorm  = 112,
+    MTLPixelFormatRGBA16Uint   = 113,
+    MTLPixelFormatRGBA16Sint   = 114,
+    MTLPixelFormatRGBA16Float  = 115,
+
+    MTLPixelFormatBGRA10_XR      = 552, // API_AVAILABLE(ios(10.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatBGRA10_XR_sRGB = 553, // API_AVAILABLE(ios(10.0)) API_UNAVAILABLE(macos, macCatalyst) 
+
+    /* Normal 128 bit formats */
+
+    MTLPixelFormatRGBA32Uint  = 123,
+    MTLPixelFormatRGBA32Sint  = 124,
+    MTLPixelFormatRGBA32Float = 125,
+
+    /* Compressed formats. */
+
+    /* S3TC/DXT */
+    MTLPixelFormatBC1_RGBA              = 130, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+    MTLPixelFormatBC1_RGBA_sRGB         = 131, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+    MTLPixelFormatBC2_RGBA              = 132, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+    MTLPixelFormatBC2_RGBA_sRGB         = 133, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+    MTLPixelFormatBC3_RGBA              = 134, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+    MTLPixelFormatBC3_RGBA_sRGB         = 135, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+
+    /* RGTC */
+    MTLPixelFormatBC4_RUnorm            = 140, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC4_RSnorm            = 141, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC5_RGUnorm           = 142, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC5_RGSnorm           = 143, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+
+    /* BPTC */
+    MTLPixelFormatBC6H_RGBFloat         = 150, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC6H_RGBUfloat        = 151, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC7_RGBAUnorm         = 152, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatBC7_RGBAUnorm_sRGB    = 153, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+
+    /* PVRTC */
+    MTLPixelFormatPVRTC_RGB_2BPP        = 160, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGB_2BPP_sRGB   = 161, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGB_4BPP        = 162, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGB_4BPP_sRGB   = 163, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGBA_2BPP       = 164, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGBA_2BPP_sRGB  = 165, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGBA_4BPP       = 166, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatPVRTC_RGBA_4BPP_sRGB  = 167, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+                                               // 
+    /* ETC2 */                                 // 
+    MTLPixelFormatEAC_R11Unorm          = 170, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatEAC_R11Snorm          = 172, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatEAC_RG11Unorm         = 174, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatEAC_RG11Snorm         = 176, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatEAC_RGBA8             = 178, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatEAC_RGBA8_sRGB        = 179, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+                                               // 
+    MTLPixelFormatETC2_RGB8             = 180, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatETC2_RGB8_sRGB        = 181, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatETC2_RGB8A1           = 182, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatETC2_RGB8A1_sRGB      = 183, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+                                               // 
+    /* ASTC */                                 // 
+    MTLPixelFormatASTC_4x4_sRGB         = 186, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_5x4_sRGB         = 187, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_5x5_sRGB         = 188, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_6x5_sRGB         = 189, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_6x6_sRGB         = 190, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x5_sRGB         = 192, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x6_sRGB         = 193, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x8_sRGB         = 194, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x5_sRGB        = 195, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x6_sRGB        = 196, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x8_sRGB        = 197, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x10_sRGB       = 198, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_12x10_sRGB       = 199, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_12x12_sRGB       = 200, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+                                               // 
+    MTLPixelFormatASTC_4x4_LDR          = 204, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_5x4_LDR          = 205, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_5x5_LDR          = 206, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_6x5_LDR          = 207, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_6x6_LDR          = 208, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x5_LDR          = 210, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x6_LDR          = 211, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_8x8_LDR          = 212, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x5_LDR         = 213, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x6_LDR         = 214, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x8_LDR         = 215, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_10x10_LDR        = 216, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_12x10_LDR        = 217, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    MTLPixelFormatASTC_12x12_LDR        = 218, //  API_AVAILABLE(ios(8.0)) API_UNAVAILABLE(macos, macCatalyst) 
+    
+    
+    // ASTC HDR (High Dynamic Range) Formats
+    MTLPixelFormatASTC_4x4_HDR          = 222,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_5x4_HDR          = 223,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_5x5_HDR          = 224,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_6x5_HDR          = 225,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_6x6_HDR          = 226,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_8x5_HDR          = 228,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_8x6_HDR          = 229,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_8x8_HDR          = 230,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_10x5_HDR         = 231,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_10x6_HDR         = 232,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_10x8_HDR         = 233,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_10x10_HDR        = 234,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_12x10_HDR        = 235,  // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    MTLPixelFormatASTC_12x12_HDR        = 236, // API_AVAILABLE(ios(13.0)) API_UNAVAILABLE(macos, macCatalyst)
+    /*!
+     @constant MTLPixelFormatGBGR422
+     @abstract A pixel format where the red and green channels are subsampled horizontally.  Two pixels are stored in 32 bits, with shared red and blue values, and unique green values.
+     @discussion This format is equivalent to YUY2, YUYV, yuvs, or GL_RGB_422_APPLE/GL_UNSIGNED_SHORT_8_8_REV_APPLE.   The component order, from lowest addressed byte to highest, is Y0, Cb, Y1, Cr.  There is no implicit colorspace conversion from YUV to RGB, the shader will receive (Cr, Y, Cb, 1).  422 textures must have a width that is a multiple of 2, and can only be used for 2D non-mipmap textures.  When sampling, ClampToEdge is the only usable wrap mode.
+     */
+    MTLPixelFormatGBGR422 = 240,
+
+    /*!
+     @constant MTLPixelFormatBGRG422
+     @abstract A pixel format where the red and green channels are subsampled horizontally.  Two pixels are stored in 32 bits, with shared red and blue values, and unique green values.
+     @discussion This format is equivalent to UYVY, 2vuy, or GL_RGB_422_APPLE/GL_UNSIGNED_SHORT_8_8_APPLE. The component order, from lowest addressed byte to highest, is Cb, Y0, Cr, Y1.  There is no implicit colorspace conversion from YUV to RGB, the shader will receive (Cr, Y, Cb, 1).  422 textures must have a width that is a multiple of 2, and can only be used for 2D non-mipmap textures.  When sampling, ClampToEdge is the only usable wrap mode.
+     */
+    MTLPixelFormatBGRG422 = 241,
+
+    /* Depth */
+
+    MTLPixelFormatDepth16Unorm  = 250, // API_AVAILABLE(macos(10.12), ios(13.0)) 
+    MTLPixelFormatDepth32Float  = 252,
+
+    /* Stencil */
+
+    MTLPixelFormatStencil8        = 253,
+
+    /* Depth Stencil */
+    
+    MTLPixelFormatDepth24Unorm_Stencil8  = 255, // API_AVAILABLE(macos(10.11), macCatalyst(13.0)) API_UNAVAILABLE(ios)
+    MTLPixelFormatDepth32Float_Stencil8  = 260, // API_AVAILABLE(macos(10.11), ios(9.0)) 
+
+    MTLPixelFormatX32_Stencil8  = 261, // API_AVAILABLE(macos(10.12), ios(10.0)) 
+    MTLPixelFormatX24_Stencil8  = 262, // API_AVAILABLE(macos(10.12), macCatalyst(13.0)) API_UNAVAILABLE(ios) 
+} TEX_ENUMS;
+
+typedef struct (int i) {
+    local int i2<hidden=true> = i;
+    TEX_ENUMS Format;
+    TEX_ENUMS Color;
+    TEX_ENUMS NormalWS;
+    TEX_ENUMS NormalVS;
+    TEX_ENUMS Material;
+    TEX_ENUMS Debug;
+    uint32 BPP;
+} entry<read=Str("0x%02X",this.i2)>;
+local int i = 0;
+
+local int count = FileSize() / (7 * 4);
+
+LittleEndian();
+for (i = 0; i < count; i++){
+    if(ReadUInt() == 0x0)
+    {
+        FSkip(4); // Format
+        if(ReadUInt() == 0x0)
+        {
+            FSkip(4); // Color
+            if(ReadUInt() == 0x0)
+            {
+                FSkip(4); // NormalWS
+                if(ReadUInt() == 0x0)
+                {
+                    FSkip(4); // NormalVS
+                    if(ReadUInt() == 0x0)
+                    {
+                        FSkip(4); // Material
+                        if(ReadUInt() == 0x0)
+                        {
+                            FSkip(4); // Debug
+                            if(ReadUInt() == 0x0)
+                            {
+                                FSkip(4); // BPP
+                                if(ReadUInt() != 0x0)
+                                {
+                                    FSkip(-28);entry data(i)<open=true, optimize=false>;
+                                }
+                            }
+                            else
+                            {
+                                FSkip(-24);entry data(i)<open=true, optimize=false>; 
+                            }
+                        }
+                        else
+                        {
+                            FSkip(-20);entry data(i)<open=true, optimize=false>; 
+                        }
+                    }
+                    else
+                    {
+                        FSkip(-16);entry data(i)<open=true, optimize=false>; 
+                    }
+                }
+                else
+                {
+                    FSkip(-12);entry data(i)<open=true, optimize=false>; 
+                }
+            }
+            else
+            {
+                FSkip(-8); entry data(i)<open=true, optimize=false>; 
+            }
+        }
+        else
+        {
+            FSkip(-4); entry data(i)<open=true, optimize=false>;
+        }
+    } 
+    else 
+    {
+        entry data(i)<open=true, optimize=false>;
+    }
+};

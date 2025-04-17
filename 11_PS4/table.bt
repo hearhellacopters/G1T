@@ -412,7 +412,7 @@ typedef enum <ubyte>
 typedef struct (int i){
     local int i2<hidden=true> = i;
     local TEX_ENUMS DIRECT = DIRECT_OUT[i];
-    uint FULL<format=hex>;
+    uint FULL<format=hex, hidden=true>;
     FSkip(-4);
     uint CHANNELS_BBP_INDEX : 8<hidden=true>,
          D_TYPE  : 4<hidden=true>,
@@ -429,10 +429,18 @@ typedef struct (int i){
     local BufferChannel Color2 = CHANNEL2 & 7; // 3bits
     local BufferChannel Color3 = CHANNEL3 & 7; // 3bits
     local BufferChannel Color4 = CHANNEL4 & 7; // 3bits
-}entry<read=Str("0x%02X - 0x%06X",this.i2, this.FULL)>;
+}entry<read=Str("0x%02X",this.i2)>;
 local int i = 0;
 local int count = FileSize() / 4;
 LittleEndian();
 for (i = 0; i < count; i++){
-    entry data(i)<open=true, optimize=false>;
+    if(ReadUInt() == 0)
+    {
+        FSkip(4);
+    }
+    else
+    {
+        entry data(i)<open=true, optimize=false>;
+    }
+    
 };

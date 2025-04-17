@@ -12,7 +12,7 @@
 //------------------------------------------------
 // Couldn't find offical
 typedef enum <uint> {
-    NONE           = 0x00000000, 
+    //NONE           = 0x00000000, 
     A8             = 0x00000001, 
   //               = 0x00000002, 
   //               = 0x00000003, 
@@ -115,10 +115,20 @@ typedef struct (int i){
     local int i<hidden=true> = i;
     SceGxmTextureFormat data;
     SceGxmTextureFormat data_alt;
-} entry<read=Str("0x%02X, 0x%08X / 0x%08X",this.i, this.data, this.data_alt)>;
+    local int test1 = 0;
+    local int test2 = 0;
+    local int test3 = 0;
+} entry<read=Str("0x%02X",this.i)>;
 local int i = 0;
 local int count = FileSize() / 8;
 LittleEndian();
 for (i = 0; i < count; i++){
-     entry data(i)<open=true>;
+    if(ReadUInt() == 0)
+    {
+        FSkip(8);
+    }
+    else
+    {
+        entry data(i)<open=true>;
+    }
 };

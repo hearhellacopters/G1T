@@ -823,7 +823,7 @@ typedef enum <uint> {
 typedef struct (int i){
     local int i<hidden=true> = i;
     SceGxmTextureFormat data;
-} entry<read=Str("0x%02X, 0x%08X",this.i, this.data)>;
+} entry<read=Str("0x%02X",this.i)>;
 local int i = 0;
 local int count = FileSize() / 4;
 LittleEndian();

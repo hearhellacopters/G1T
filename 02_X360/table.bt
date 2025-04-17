@@ -10,6 +10,7 @@
 //  ID Bytes: 
 //   History: 
 //------------------------------------------------
+
 typedef enum <ubyte>
 {
     Z4             = 0x01,
@@ -62,7 +63,7 @@ typedef struct (int i){
     local uint sRGB<format=hex> = full | 0x7E;
     local int other<format=hex> = other_map[(full * 2) & 0x7E];
     local int BPP<format=hex> = other_map[((full * 2) & 0x7E) + 1];
-} entry<read=Str("0x%02X - 0x%08X",this.i, this.full)>;
+} entry<read=Str("0x%02X",this.i)>;
 local int i = 0;
 local int count = FileSize() / 4;
 BigEndian();
