@@ -372,6 +372,7 @@ typedef enum <ubyte>
 	kSurfaceFormat32_32                                 = 0x0000000b, ///< Two 32-bit channels.
 	kSurfaceFormat16_16_16_16                           = 0x0000000c, ///< Four 16-bit channels.
 	kSurfaceFormat32_32_32                              = 0x0000000d, ///< Three 32-bit channels.
+    
 	kSurfaceFormat32_32_32_32                           = 0x0000000e, ///< Four 32-bit channels.
 	kSurfaceFormat5_6_5                                 = 0x00000010, ///< One 5-bit channel (Z), one 6-bit channel (Y), and a second 5-bit channel (X). X=0x001F, Y=0x07E0, Z=0xF800
 	kSurfaceFormat1_5_5_5                               = 0x00000011, ///< One 1-bit channel (W) and three 5-bit channels (Z,Y,X). X=0x001F, Y=0x03E0, Z=0x7C00, W=0x8000
@@ -390,6 +391,8 @@ typedef enum <ubyte>
 	kSurfaceFormatBc5                                   = 0x00000027, ///< BC5 block-compressed surface.
 	kSurfaceFormatBc6                                   = 0x00000028, ///< BC6 block-compressed surface.
 	kSurfaceFormatBc7                                   = 0x00000029, ///< BC7 block-compressed surface.
+    
+    
 	kSurfaceFormatFmask8_S2_F1                          = 0x0000002C, ///< 8 bits-per-element FMASK surface (2 samples, 1 fragment).
 	kSurfaceFormatFmask8_S4_F1                          = 0x0000002D, ///< 8 bits-per-element FMASK surface (4 samples, 1 fragment).
 	kSurfaceFormatFmask8_S8_F1                          = 0x0000002E, ///< 8 bits-per-element FMASK surface (8 samples, 1 fragment).

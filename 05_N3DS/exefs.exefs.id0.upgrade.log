@@ -1,0 +1,20 @@
+IDA has found an unpacked version of database: C:\Users\SalP\Documents\Reversing\_KTGL\05_N3DS\exefs.exefs.idb
+on the disk.
+
+Should we proceed with the unpacked files?
+ -> Pro~c~eed with unpacked base
+
+  bytes   pages size description
+--------- ----- ---- --------------------------------------------
+ 11952128  1459 8192 allocating memory for b-tree...
+ 21487616  2623 8192 allocating memory for virtual array...
+   262144    32 8192 allocating memory for name pointers...
+-----------------------------------------------------------------
+ 33701888            total memory allocated
+
+Loading type libraries...
+Can't use BIOS comments base. -> OK
+Autoanalysis subsystem has been initialized.
+Database for file 'exefs.exefs' has been loaded.
+Flushing buffers, please wait...ok
+Unloading IDP module arm...

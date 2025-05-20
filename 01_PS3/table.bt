@@ -1,16 +1,16 @@
 //------------------------------------------------
 //--- 010 Editor v15.0.1 Binary Template
 //
-//      File: 
-//   Authors: 
-//   Version: 
-//   Purpose: 
-//  Category: 
+//      File: table.bt
+//   Authors: HearHellacopters
+//   Version: 1.0
+//   Purpose: PS3 Research texture fromats
+//  Category: Image
 // File Mask: 
 //  ID Bytes: 
 //   History: 
+//   1.0    2019-08-22  HearHellacopters: Made the original file
 //------------------------------------------------
-
 
 typedef enum<uint> 
 {   

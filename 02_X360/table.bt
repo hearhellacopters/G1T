@@ -1,14 +1,15 @@
 //------------------------------------------------
 //--- 010 Editor v15.0.1 Binary Template
 //
-//      File: 
-//   Authors: 
-//   Version: 
-//   Purpose: 
+//      File: table.bt
+//   Authors: HearHellacopters
+//   Version: 1.0
+//   Purpose: XBOX 360 texture fromats research
 //  Category: 
 // File Mask: 
 //  ID Bytes: 
 //   History: 
+//   1.0    2019-08-22  HearHellacopters: Made the original file
 //------------------------------------------------
 
 typedef enum <ubyte>
@@ -62,7 +63,7 @@ typedef struct (int i){
     local byte clamped<format=hex> = full & 0x3F;
     local uint sRGB<format=hex> = full | 0x7E;
     local int other<format=hex> = other_map[(full * 2) & 0x7E];
-    local int BPP<format=hex> = other_map[((full * 2) & 0x7E) + 1];
+    local int BPP = other_map[((full * 2) & 0x7E) + 1];
 } entry<read=Str("0x%02X",this.i)>;
 local int i = 0;
 local int count = FileSize() / 4;

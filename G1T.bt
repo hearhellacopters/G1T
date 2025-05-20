@@ -3,12 +3,16 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 2.0
+//   Version: 2.4
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   2.4    2025-05-01  HearHellacopters: Add new logic for reading ex headers
+//   2.3    2025-04-25  HearHellacopters: Added Nintendo Switch size padding
+//   2.2    2025-04-25  HearHellacopters: Fix for 0 files size error files and new enums
+//   2.1    2025-04-10  HearHellacopters: Extra header ints don't generate on 0 size
 //   2.0    2025-04-04  HearHellacopters: Fixed size calculations & other errors
 //   1.9    2025-03-29  HearHellacopters: Fixed mips and added Ronin swizzle flag
 //   1.8    2025-03-16  HearHellacopters: Added ASTC check
@@ -24,7 +28,7 @@
 //------------------------------------------------
 LittleEndian();
 
- // Texture enums for all Window and Open GL formats
+// Texture enums for all Window and Open GL formats
 typedef enum <ushort> 
 {
  // Windows DXGI ENUMS 
@@ -151,6 +155,7 @@ typedef enum <ushort>
     GL_COMPRESSED_R11_EAC                               = 0x9270,
     GL_COMPRESSED_RG11_EAC                              = 0x9272,
     GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2         = 0x9276,
+    GL_COMPRESSED_RGBA_ASTC                             = 0x93AF,
     GL_COMPRESSED_RGBA_ASTC_4x4                         = 0x93B0,
     GL_COMPRESSED_RGBA_ASTC_5x4                         = 0x93B1,
     GL_COMPRESSED_RGBA_ASTC_5x5                         = 0x93B2,
@@ -212,31 +217,8 @@ typedef enum <ushort>
     GX_TF_CI14                                          = 0x5A0A
 } TEX_ENUMS;
 
-typedef enum<uint32> 
+local TEX_ENUMS TEX_FORMS[640]<hidden=true> = 
 {
-    PS2      = 0x00, // Raw
-    PS3      = 0x01, // Special Tiled Z Morton Swizzling
-    X360     = 0x02, // Extra Special Tiling Swizzling
-    NWii     = 0x03, // 
-  //NDS      = 0x04, // <- didn't find a game with g1t files
-    N3DS     = 0x05, // 
-    PSVita   = 0x06, // 
-    Android  = 0x07, // 
-    iOS      = 0x08, // 
-    NWiiU    = 0x09, // Big Endian
-    WinMac   = 0x0A, // They share the same enum
-    PS4      = 0x0B, // Special Z Morton Swizzling
-  //XOne     = 0x0C, // <- Need rom to confrim
-  //???      = 0x0D, //
-    WinDX12  = 0x0E, // 
-  //???      = 0x0F, //
-    NSwitch  = 0x10, // 
-  //???      = 0x11, //
-  //???      = 0x12, //
-    PS5      = 0x13, //
-} PLATFORM;
-
-local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
  //                                   v - I added this to the table (not found in client)                                     
  // Internal|Color  |Data   |Bits per|Min byte
  // format  |space  |type   |pixel   |size
@@ -257,8 +239,8 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
     0x549A, 0x5500, 0x5500, 0x20,    0x04, // 0x0E SCE_GXM_TEXTURE_BASE_FORMAT_U2F10F10F10 SCE_GXM_TEXTURE_SWIZZLE4_ABGR
     0x1906, 0x1906, 0x1401, 0x08,    0x01, // 0x0F GL_ALPHA GL_ALPHA GL_UNSIGNED_BYTE
     0x46,   0x47,   0x48,   0x04,    0x08, // 0x10 DXGI_FORMAT_BC1_TYPELESS DXGI_FORMAT_BC1_UNORM DXGI_FORMAT_BC1_UNORM_SRGB DXT1 (PSV Swizzle & sometimes flip)
-    0x49,   0x4A,   0x4B,   0x08,    0x10, // 0x11 DXGI_FORMAT_BC2_TYPELESS DXGI_FORMAT_BC2_UNORM DXGI_FORMAT_BC2_UNORM_SRGB DXT2 / DXT3 (PSV Swizzle & sometimes flip)
-    0x4C,   0x4D,   0x4E,   0x08,    0x10, // 0x12 DXGI_FORMAT_BC3_TYPELESS DXGI_FORMAT_BC3_UNORM DXGI_FORMAT_BC3_UNORM_SRGB DXT4 / DXT5 (PSV Swizzle & sometimes flip)
+    0x49,   0x4A,   0x4B,   0x08,    0x10, // 0x11 DXGI_FORMAT_BC2_TYPELESS DXGI_FORMAT_BC2_UNORM DXGI_FORMAT_BC2_UNORM_SRGB DXT2 / DXT3 (PS Vita Swizzle 4x4 & sometimes flip)
+    0x4C,   0x4D,   0x4E,   0x08,    0x10, // 0x12 DXGI_FORMAT_BC3_TYPELESS DXGI_FORMAT_BC3_UNORM DXGI_FORMAT_BC3_UNORM_SRGB DXT4 / DXT5 (PS Vita Swizzle 4x4 & sometimes flip)
     0x2C,   0x2E,   0x2D,   0x20,    0x04, // 0x13 DXGI_FORMAT_R24G8_TYPELESS DXGI_FORMAT_R24_UNORM_X8_TYPELESS DXGI_FORMAT_D24_UNORM_S8_UINT
     0x81A5, 0x1902, 0x1403, 0x10,    0x02, // 0x14 GL_DEPTH_COMPONENT16 GL_DEPTH_COMPONENT GL_UNSIGNED_SHORT (r16)
     0x35,   0x38,   0x37,   0x10,    0x02, // 0x15 DXGI_FORMAT_R16_TYPELESS DXGI_FORMAT_R16_UNORM DXGI_FORMAT_D16_UNORM
@@ -365,12 +347,153 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> = {
     0x9270, 0x1903, 0x1401, 0x04,    0x08, // 0x7A GL_COMPRESSED_R11_EAC GL_RED GL_UNSIGNED_BYTE
     0x9272, 0x8227, 0x1401, 0x08,    0x10, // 0x7B GL_COMPRESSED_RG11_EAC GL_RG GL_UNSIGNED_BYTE
     0x9276, 0x1908, 0x1401, 0x04,    0x08, // 0x7C GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 GL_RGBA GL_UNSIGNED_BYTE
-    0x93BD, 0x1908, 0x1401, 0x01F5,  0x10, // 0x7D  ASTC uses ASTC_SUB format
-    0x93BD, 0x1908, 0x1401, 0x01F5,  0x10, // 0x7E  also ASTC uses ASTC_SUB format
+    0x93AF, 0x1908, 0x1401, 0x01F5,  0x10, // 0x7D  ASTC uses ASTC_SUB format
+    0x93AF, 0x1908, 0x1401, 0x01F5,  0x10, // 0x7E  also ASTC uses ASTC_SUB format
     0x0,    0x0,    0x0,    0x0,     0x0   // 0x7F  (unknown)
 };
 
-local ushort ASTC_SUB[70]<hidden=true> = {
+string FORMAT_STR(ubyte num, uint astc)
+{
+    switch(num)
+    {
+    case 0x00: return "R8G8B8A8";
+    case 0x01: return "B8G8R8A8";
+    case 0x02: return "R32_FLOAT";
+    case 0x03: return "R16G16B16A16_HALF_FLOAT";
+    case 0x04: return "R32G32B32A32_FLOAT";
+    case 0x05: return "D24S8";
+    case 0x06: return "BC1";
+    case 0x07: return "BC2";
+    case 0x08: return "BC3";
+    case 0x09: return "R8G8B8A8";
+    case 0x0A: return "B8G8R8A8";
+    case 0x0B: return "R32_FLOAT";
+    case 0x0C: return "R16G16B16A16_HALF_FLOAT";
+    case 0x0D: return "R32G32B32A32_FLOAT";
+    case 0x0E: return "A2B10G10R10_HALF_FLOAT";
+    case 0x0F: return "A8";
+    case 0x10: return "BC1";
+    case 0x11: return "BC2";
+    case 0x12: return "BC3";
+    case 0x13: return "D24S8";
+    case 0x14: return "D16";
+    case 0x15: return "R16";
+    case 0x16: return "R16";
+    case 0x17: return "R16";
+    case 0x18: return "A8";
+    case 0x19: return "B5G6R5";
+    case 0x1A: return "B5G5R5A1";
+    case 0x1B: return "A4R4G4B4";
+    case 0x1C: return "B5G6R5";
+    case 0x1D: return "B5G5R5A1";
+    case 0x1E: return "A4R4G4B4";
+    case 0x1F: return "R32_FLOAT";
+    case 0x20: return "D24S8";
+    case 0x21: return "B8G8R8A8";
+    case 0x22: return "B8G8R8x8";
+    case 0x23: return "R16G16";
+    case 0x24: return "G16R16";
+    case 0x25: return "R5G5B5A3";
+    case 0x26: return "G8B8";
+    case 0x27: return "A8R8";
+    case 0x28: return "B8";
+    case 0x29: return "G8";
+    case 0x2A: return "R8";
+    case 0x2B: return "L4";
+    case 0x2C: return "L8";
+    case 0x2D: return "A4L4";
+    case 0x2E: return "R8A8";
+    case 0x2F: return "R4";
+    case 0x30: return "R8";
+    case 0x31: return "CI4";
+    case 0x32: return "CI8";
+    case 0x33: return "C14X2";
+    case 0x34: return "B5G6R5";
+    case 0x35: return "A1B5G5R5";
+    case 0x36: return "A4B4G4R4";
+    case 0x37: return "P4";
+    case 0x38: return "P8";
+    case 0x39: return "R16I";
+    case 0x3A: return "R32I";
+    case 0x3B: return "R5G6B5";
+    case 0x3C: return "R5G5B5A1";
+    case 0x3D: return "R4G4B4A4";
+    case 0x3E: return "R16I";
+    case 0x3F: return "R32I";
+    case 0x40: return "R10G10B10A2";
+    case 0x41: return "R16G16B16A16";
+    case 0x42: return "R10G10B10A2";
+    case 0x43: return "R16G16B16A16";
+    case 0x44: return "A4";
+    case 0x45: return "R8G8B8";
+    case 0x46: return "R8G8";
+    case 0x47: return "PICA_ETC1_R8G8B8";
+    case 0x48: return "PICA_ETC1_R8G8B8A4";
+    case 0x49: return "R8G8B8";
+    case 0x4A: return "R8G8B8";
+    case 0x4B: return "R8G8B8";
+    case 0x4C: return "R32G32_FLOAT";
+    case 0x4D: return "R32G32_FLOAT";
+    case 0x4E: return "R32_FLOAT";
+    case 0x4F: return "D32_FLOAT";
+    case 0x50: return "PVRTC2BPP";
+    case 0x51: return "PVRTC2BPP";
+    case 0x52: return "PVRTC4BPP";
+    case 0x53: return "PVRTC4BPP";
+    case 0x54: return "L8";
+    case 0x55: return "L8A8";
+    case 0x56: return "ETC1_R8G8B8";
+    case 0x57: return "PVRTC2BPP";
+    case 0x58: return "PVRTC4BPP";
+    case 0x59: return "BC1";
+    case 0x5A: return "BC2";
+    case 0x5B: return "BC3";
+    case 0x5C: return "BC4";
+    case 0x5D: return "BC5";
+    case 0x5E: return "BC6H";
+    case 0x5F: return "BC7";
+    case 0x60: return "BC1";
+    case 0x61: return "BC2";
+    case 0x62: return "BC3";
+    case 0x63: return "BC4";
+    case 0x64: return "BC5";
+    case 0x65: return "BC6H";
+    case 0x66: return "BC7";
+    case 0x67: return "R8G8B8A8";
+    case 0x68: return "R8G8";
+    case 0x69: return "R16G16_HALF_FLOAT";
+    case 0x6A: return "R16_HALF_FLOAT";
+    case 0x6B: return "R11G11B10_HALF_FLOAT";
+    case 0x6C: return "D32S8x24_FLOAT";
+    case 0x6D: return "R16";
+    case 0x6E: return "R16";
+    case 0x6F: return "ETC1_R8G8B8_ALPHA_ATLAS";
+    case 0x70: return "PVRTC4BPP_ALPHA_ATLAS";
+    case 0x71: return "ETC2_R8G8BA8";
+    case 0x72: return "R8";
+    case 0x73: return "R8G8";
+    case 0x74: return "R8G8B8A8";
+    case 0x75: return "R8G8";
+    case 0x76: return "R16G16_FLOAT";
+    case 0x77: return "R16_FLOAT";
+    case 0x78: return "R11G11B10_HALF_FLOAT";
+    case 0x79: return "R16";
+    case 0x7A: return "ETC2_EAC_R11";
+    case 0x7B: return "ETC2_EAC_R11G11";
+    case 0x7C: return "ETC2_R8G8B8A1";
+    case 0x7D:
+    case 0x7E:
+        if(astc != -1)
+        {
+            return ASTC_STR(astc);
+        }
+        return "ASTC";  
+    default: return Str("Unkown format %d", num);
+    }
+}
+
+local ushort ASTC_SUB[70]<hidden=true> = 
+{
  // Internal|Color  |Data   |Bits per|Min byte
  // format  |space  |type   |pixel   |size
     0x93B0, 0x1908, 0x1401, 0x0008,  0x10, // 0x00 GL_COMPRESSED_RGBA_ASTC_4x4    GL_RGBA  GL_UNSIGNED_BYTE 8.00
@@ -389,28 +512,214 @@ local ushort ASTC_SUB[70]<hidden=true> = {
     0x93BD, 0x1908, 0x1401, 0x01F5,  0x10  // 0x0D GL_COMPRESSED_RGBA_ASTC_12x12  GL_RGBA  GL_UNSIGNED_BYTE 0.89
 };
 
+typedef enum <uint> 
+{
+    ASTC_4x4,
+    ASTC_5x4,
+    ASTC_5x5,
+    ASTC_6x5,
+    ASTC_6x6,
+    ASTC_8x5,
+    ASTC_8x6,
+    ASTC_8x8,
+    ASTC_10x5,
+    ASTC_10x6,
+    ASTC_10x8,
+    ASTC_10x10,
+    ASTC_12x10,
+    ASTC_12x12
+} eASTC_FORMAT;
+
+string ASTC_STR(eASTC_FORMAT FORMAT) 
+{
+    switch(FORMAT)
+    {
+    case ASTC_4x4:   return "ASTC_4x4";
+    case ASTC_5x4:   return "ASTC_5x4";
+    case ASTC_5x5:   return "ASTC_5x5";
+    case ASTC_6x5:   return "ASTC_5x6";
+    case ASTC_6x6:   return "ASTC_6x6";
+    case ASTC_8x5:   return "ASTC_8x5";
+    case ASTC_8x6:   return "ASTC_8x6";
+    case ASTC_8x8:   return "ASTC_8x8";
+    case ASTC_10x5:  return "ASTC_10x5";
+    case ASTC_10x6:  return "ASTC_10x6";
+    case ASTC_10x8:  return "ASTC_10x8";
+    case ASTC_10x10: return "ASTC_10x10";
+    case ASTC_12x10: return "ASTC_12x12";
+    case ASTC_12x12: return "ASTC_12x12";
+    default:         return "Unknown ASTC format";
+    }
+}
+
+typedef enum<uint32> 
+{
+    PS2      = 0x00, // <- didn't find a game with g1t files
+    PS3      = 0x01, // Special Tiled Z Morton Swizzling
+    X360     = 0x02, // Extra Special Tiling Swizzling
+    NWii     = 0x03, // 
+    NDS      = 0x04, // <- didn't find a game with g1t files
+    N3DS     = 0x05, // 
+    PSVita   = 0x06, // 
+    Android  = 0x07, // 
+    iOS      = 0x08, // 
+    NWiiU    = 0x09, // Big Endian
+    WinMac   = 0x0A, // They share the same enum
+    PS4      = 0x0B, // Special Z Morton Swizzling
+  //XOne     = 0x0C, // <- Need rom to confrim
+  //???      = 0x0D, //
+    WinDX12  = 0x0E, // 
+  //???      = 0x0F, //
+    NSwitch  = 0x10, // 
+  //???      = 0x11, //
+  //???      = 0x12, //
+    PS5      = 0x13, //
+} PLATFORM;
+
+string SYSTEM_STR(PLATFORM SYSTEM) 
+{
+    switch(SYSTEM)
+    {
+    case PS2:     return "PS2";    
+    case PS3:     return "PS3";
+    case X360:    return "Xbox 360";
+    case NWii:    return "Nintendo Wii";
+    case NDS:     return "Nintendo DS";    
+    case N3DS:    return "Nintendo 3DS";   
+    case PSVita:  return "Playstation Vita";  
+    case Android: return "Android"; 
+    case iOS:     return "iOS";
+    case NWiiU:   return "Nintendo Wii U";
+    case WinMac:  return "Windows";  
+    case PS4:     return "PS4";          
+    case WinDX12: return "Windows Direct-X 12";       
+    case NSwitch: return "Nintendo Switch";      
+    case PS5:     return "PS5";
+    default:      return Str("Unknown System 0x%02X", SYSTEM);
+    }
+}
+
 typedef enum<ushort>
 {
  // These are sometime directly hardcoded to the client.
  // Meaning that they don't appear in the file, 
  // but are hardcodes on every g1t the game reads
-    NORMAL_MAP          = 0x03,
-    NORMAL_WITH_ALPHA   = 0x04,
+    CHANNEL_SWAP        = 0x01, // xbox 360 can mean dont swizzle in others
+    NO_ALPHA            = 0x02, // xbox 360
+    NORMAL_MAP          = 0x03, // xbox 360
+    COLOR_TEST          = 0x04, // n switch test file
     N3DS_Wii_SWIZZLE    = 0x05,
     WiiU_SWIZZLE        = 0x06,
     PS4_PLANE_ARRAY     = 0x07,
     PSVITA_PS5_SWIZZLE  = 0x08,
+  //???                 = 0x09,
+  //???                 = 0x0A,
+  //???                 = 0x0B,
+  //???                 = 0x0C,
+  //???                 = 0x0D,
+  //???                 = 0x0E,
+  //???                 = 0x0F,
+  //???                 = 0x10,
+  //???                 = 0x11,
+  //???                 = 0x12,
+  //???                 = 0x13,
+  //???                 = 0x14,
     ASTC_TYPE           = 0x15
-} TEX_ATTR_TYPE;
+} TEX_EX_TYPE;
+
+string TEX_EX_STR(TEX_EX_TYPE num) 
+{
+    switch(num)
+    {
+    case 0:                  return "NONE";
+    case CHANNEL_SWAP:       return "CHANNEL_SWAP";
+    case NO_ALPHA:           return "NO_ALPHA";
+    case NORMAL_MAP:         return "NORMAL_MAP";
+    case COLOR_TEST:         return "COLOR_TEST";
+    case N3DS_Wii_SWIZZLE:   return "N3DS_Wii_SWIZZLE";
+    case WiiU_SWIZZLE:       return "WiiU_SWIZZLE";
+    case PS4_PLANE_ARRAY:    return "PS4_PLANE_ARRAY";
+    case PSVITA_PS5_SWIZZLE: return "PSVITA_PS5_SWIZZLE";
+    case ASTC_TYPE:          return "ASTC_TYPE";
+    default:                 return "";
+    }
+};
 
 enum<ubyte> S_GT1_LOAD_TYPE
 {
     PLANAR      = 0,
-    CUBE        = 1,
-    VOLUME      = 2,
-    PLANE_ARRAY = 3,
-    CUBE_ARRAY  = 4     // ver 63 and above
+    CUBE        = 1, // 6 sided
+    VOLUME      = 2, // AKA 3D
+    PLANE_ARRAY = 3, // AKA 2D array
+    CUBE_ARRAY  = 4  // ver 63 and above
 };
+
+string LOAD_TYPE_STR(S_GT1_LOAD_TYPE TYPE)
+{
+    switch(TYPE)
+    {
+    case PLANAR: 
+        return "";
+        break;     
+    case CUBE:    
+        return " CUBE";
+        break; 
+    case VOLUME: 
+        return " VOLUME";
+        break;    
+    case PLANE_ARRAY:
+        return " PLANE ARRAY";
+        break;
+    case CUBE_ARRAY: 
+        return " CUBE ARRAY";
+        break;
+    default:
+        return " Unknown Type";
+        break;
+    }
+};
+
+enum<ubyte> COLOR_SPACE
+{
+    sRGB         = 0x01,
+};
+
+string COLOR_SPACE_STR(int num)
+{
+    switch(num)
+    {
+    case 0:  
+        return "";
+        break;  
+    case 1: 
+        return " (sRGB)";
+        break;     
+    default:
+        return Str(" Unknown Color Space %d", num);
+        break;
+    }
+};
+
+enum<ubyte> EX_SWIZZLE_TYPE
+{
+    DX12_64kb = 0x01,
+};
+
+string EX_SWIZZLE_STR(int num)
+{
+    switch(num)
+    {
+    case 0:  
+        return "";
+        break;  
+    case DX12_64kb: 
+        return " (DX12 64kb swizzle)";
+        break;     
+    default:
+        return Str(" Unknown EX Swizzle %d", num);
+        break;
+    }
+}
 
    // Function for ASTC bit size
 float MakeBBP(short value) 
@@ -432,17 +741,29 @@ float MakeBBP(short value)
     }
 }
 
+uint32 Align(uint32 value, uint32 alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
 uint32 TextureSizeWithMips(
-    uint32 width, uint32 height, uint32 depth,
-    uint32 mipCount, uint32 arrayCount, uint32 faceCount,
-    uint32 blockByteSize, uint32 blockWidth, uint32 blockHeight,
-    uint32 bCompressedFormat, float bitsPerPixel
+    uint32 width, 
+    uint32 height, 
+    uint32 depth,
+    uint32 mipCount,
+    uint32 arrayCount, 
+    uint32 faceCount,
+    uint32 blockByteSize, 
+    uint32 blockWidth, 
+    uint32 blockHeight,
+    uint32 bCompressedFormat, 
+    float bitsPerPixel,
+    uint32 pAlignment
     )
 {
     local uint32 totalSize = 0;
     local uint32 w = width;
     local uint32 h = height;
-    local uint32 d = depth;
+    local uint32 d = depth; if (d == 0) d = 1;
     local uint32 mip = 0;
     local uint32 blocksX = 0;
     local uint32 blocksY = 0;
@@ -460,7 +781,7 @@ uint32 TextureSizeWithMips(
             blocksX = (w + blockWidth - 1) / blockWidth;   if (blocksX == 0) blocksX = 1;
             blocksY = (h + blockHeight - 1) / blockHeight; if (blocksY == 0) blocksY = 1;
         
-            mipSize = blocksX * blocksY * d * blockByteSize;
+            mipSize = blocksX * blocksY * blockByteSize;
             
          // Sanity check for smallest block size
             if(mipSize < blockByteSize)
@@ -468,17 +789,31 @@ uint32 TextureSizeWithMips(
                 mipSize = blockByteSize;
             }
             
+            if(pAlignment)
+            {
+                mipSize = Align(mipSize, pAlignment);
+            }
+            
+            mipSize = mipSize * d;
+            
             totalSize += mipSize;
         }
         else
         {
-	       mipSize = (w * h * d) * (bitsPerPixel / 8);
+	        mipSize = (w * h) * (bitsPerPixel / 8);
             
          // Sanity check for smallest pixel size
             if (mipSize < blockByteSize) 
             {
                 mipSize = blockByteSize;
             }  
+            
+            if(pAlignment)
+            {
+                mipSize = Align(mipSize, pAlignment);
+            }
+            
+            mipSize = mipSize * d;
                 
 	        totalSize += mipSize;
         }
@@ -487,15 +822,339 @@ uint32 TextureSizeWithMips(
     return totalSize * arrayCount * faceCount;
 }
 
+uint32 isPowerOfTwo(int n) {
+  if (n <= 0) {
+    return 0;
+  }
+  return (n & (n - 1)) == 0;
+}
+
+uint32 nextPowerOfTwo(uint32 v) {
+    if (v == 0) return 1;
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
+}
+
+uint32 alignUp(uint32 value, uint32 alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+uint32 block_height_enum(uint32 blocksY) {
+    local uint32 h = blocksY + (blocksY / 2);
+    if (h >= 128) return 16;
+    if (h >= 64) return 8;
+    if (h >= 32) return 4;
+    if (h >= 16) return 2;
+    return 1;
+}
+
+uint32 mip_block_height(uint32 mipHeight, uint32 blockHeightEnum) {
+    while (mipHeight <= (blockHeightEnum / 2) * 8 && blockHeightEnum > 1) {
+        blockHeightEnum /= 2;
+    }
+    return blockHeightEnum;
+}
+
+uint32 align_layer_size(uint32 layer_size, uint32 height, uint32 depth, uint32 block_height_enum) {
+    local uint32 gob_height = block_height_enum;
+    local uint32 gob_depth = 1;
+
+    while (height <= (gob_height / 2) * 8 && gob_height > 1) {
+        gob_height /= 2;
+    }
+    while (depth <= (gob_depth / 2) && gob_depth > 1) {
+        gob_depth /= 2;
+    }
+
+    local uint32 block_of_gobs_size = gob_height * gob_depth * 512; // GOB_SIZE
+    local uint32 size_in_blocks = layer_size / block_of_gobs_size;
+
+    if (layer_size != size_in_blocks * block_of_gobs_size) {
+        layer_size = (size_in_blocks + 1) * block_of_gobs_size;
+    }
+
+    return layer_size;
+}
+
+uint32 swizzled_mip_size(uint32 blocksX, uint32 blocksY, uint32 blocksZ,
+                                 uint32 blockHeightEnum, uint32 blockSizeBytes) {
+    local uint32 width_in_gobs = alignUp(blocksX * blockSizeBytes, 64) / 64;
+    local uint32 height_in_gobs = (blocksY + (blockHeightEnum * 8 - 1)) / (blockHeightEnum * 8);
+    return width_in_gobs * height_in_gobs * blocksZ * blockHeightEnum * 512; // GOB_SIZE
+}
+
+uint SwitchTextureSizeWithMips(
+    uint32 width, 
+    uint32 height, 
+    uint32 depth,
+    uint32 mipCount, 
+    uint32 layers,
+    uint32 blockWidth, 
+    uint32 blockHeight,
+    uint32 blockSizeBytes, 
+    uint32 bitsPerPixel,
+    int isCompressed,
+    S_GT1_LOAD_TYPE textureType)
+{
+    local uint32 layerSize = 0;
+    local uint32 mip = 0;
+    local uint32 mipWidth = 0;
+    local uint32 mipHeight = 0;
+    local uint32 mipDepth = 0;
+    local uint32 mipSize = 0;
+    local uint32 blocksX = 0;
+    local uint32 blocksY = 0;
+    local uint32 blocksZ = 0;
+    local uint32 mipBlockHeight = 0;
+    
+    local uint32 blocksY_full = (height + blockHeight - 1) / blockHeight;
+    local uint32 blockHeightEnum = block_height_enum(blocksY_full);
+    
+    for (mip = 0; mip < mipCount; ++mip) 
+    {
+        mipSize = 0;
+
+        if (isCompressed) 
+        {
+            mipWidth = width  >> mip;
+            mipHeight = height >> mip;
+            mipDepth = depth  >> mip;
+    
+            if (mipWidth == 0) mipWidth = 1;
+            if (mipHeight == 0) mipHeight = 1;
+            if (mipDepth == 0) mipDepth = 1;
+        
+            blocksX = (mipWidth  + blockWidth  - 1) / blockWidth;
+            blocksY = (mipHeight + blockHeight - 1) / blockHeight;
+            blocksZ = (mipDepth  + 1 - 1); // Assume blockDepth = 1
+
+            mipBlockHeight = mip_block_height(blocksY, blockHeightEnum);
+            mipSize = swizzled_mip_size(blocksX, blocksY, blocksZ, mipBlockHeight, blockSizeBytes);
+        } 
+        else 
+        {
+            if(mip == 0 && height < 8 ) height = 8;
+            
+            mipWidth = width  >> mip;
+            mipHeight = height >> mip; 
+            mipDepth = depth  >> mip;
+    
+            if (mipWidth == 0) mipWidth = 1;
+            if (mipHeight == 0) mipHeight = 1;
+            if (mipDepth == 0) mipDepth = 1;
+            
+            mipSize = (mipWidth * mipHeight * mipDepth * bitsPerPixel) / 8;
+        }
+
+        layerSize += mipSize;
+    }
+
+    // Apply 4KB alignment for 2D arrays, cubes, cube arrays
+    if (textureType == PLANE_ARRAY || 
+        textureType == CUBE || 
+        textureType == CUBE_ARRAY
+    )
+    {
+        layerSize = align_layer_size(layerSize, height, depth, blockHeightEnum);
+    }
+    
+    local uint32 totalLayers = layers;
+    
+    if ( textureType == CUBE || 
+         textureType == CUBE_ARRAY
+    )
+    {
+        totalLayers *= 6; // 6 faces per cube
+    }
+
+    return layerSize * totalLayers;
+};
+
+local int32 PS5MipMatrixXSq[156]<hidden=true> = 
+{
+// (mip * 13) width dim
+//      0   1   2   3   4    5    6    7    8    9    10    11    12 
+/*0 */  0, 16, 16, 16, 16,  32,  64, 128, 256, 512, 1024, 2048, 4096,
+/*1 */  0, 16, 16, 16, 16,  32,  64, 128, 256, 512, 1024, 2048,    0,    
+/*2 */  0,  0, 16, 16, 16,  32,  64, 128, 256, 512, 1024,    0,    0,
+/*3 */  0,  0, 16, 16, 16,  32, 128, 256, 256, 512,    0,    0,    0,
+/*4 */  0,  0, 16, 16, 16,  64, 128, 128, 256,   0,    0,    0,    0,
+/*5 */  0,  0, 16, 16, 64, 128, 128, 128,   0,   0,    0,    0,    0,
+/*6 */  0, 32, 16, 32, 64,  64, 128,   0,   0,   0,    0,    0,    0,
+/*7 */  0, 32, 16, 32, 64,  64,   0,   0,   0,   0,    0,    0,    0,
+/*8 */  0, 32, 32, 32, 64,   0,   0,   0,   0,   0,    0,    0,    0,
+/*9 */  0, 64, 16, 32,  0,   0,   0,   0,   0,   0,    0,    0,    0,
+/*10*/  0, 32, 16,  0,  0,   0,   0,   0,   0,   0,    0,    0,    0,
+/*11*/  0, 32,  0,  0,  0,   0,   0,   0,   0,   0,    0,    0,    0
+};
+
+local int32 PS5MipMatrixYSq[156]<hidden=true> = 
+{
+// (mip * 13) + hight dim 
+//      0   1   2   3   4    5    6    7    8    9    10    11    12 
+/*0 */  0, 16, 16, 16, 16,  32,  64, 128, 256, 512, 1024, 2048, 4096,
+/*1 */  0, 16, 16, 16, 16,  32,  64, 128, 256, 512, 1024, 2048,    0,
+/*2 */  0,  0, 16, 16, 16,  64,  64, 256, 256, 512, 1024,    0,    0,
+/*3 */  0,  0, 16, 16, 32,  64, 128, 128, 256, 512,    0,    0,    0,
+/*4 */  0,  0, 16, 16, 32, 128, 128, 256, 256,   0,    0,    0,    0,
+/*5 */  0,  0, 16, 16, 64,  64, 128, 256,   0,   0,    0,    0,    0,
+/*6 */  0, 32, 16, 64, 64, 128, 128,   0,   0,   0,    0,    0,    0,
+/*7 */  0, 32, 32, 32, 64, 128,   0,   0,   0,   0,    0,    0,    0,
+/*8 */  0, 48, 16, 64, 64,   0,   0,   0,   0,   0,    0,    0,    0,
+/*9 */  0, 40, 32, 64,  0,   0,   0,   0,   0,   0,    0,    0,    0,
+/*10*/  0, 48, 32,  0,  0,   0,   0,   0,   0,   0,    0,    0,    0,
+/*11*/  0, 48,  0,  0,  0,   0,   0,   0,   0,   0,    0,    0,    0
+};
+
+// never figured out the map on none-squares so I gave up here
+uint32 PS5TextureSizeWithMips(
+    uint32 widthDim, 
+    uint32 heightDim, 
+    uint32 depth,
+    uint32 mipCount,
+    uint32 planeCount, 
+    uint32 faceCount,
+    uint32 blockSize, 
+    uint32 blockWidth, 
+    uint32 blockHeight,
+    uint32 bCompressedFormat, 
+    float bitsPerPixel,
+    uint64 totalTexBufferLen
+    )
+{
+    local uint32 totalSize = 0;
+    local int32 w = widthDim;
+    local int32 h = heightDim;
+    local uint32 dimX = widthDim;
+    local uint32 dimY = heightDim;
+    local uint32 d = depth; if (d == 0) d = 1;
+    local uint32 mip = 0;
+    local uint32 mip0Size = 0;
+    local uint32 mipSize = 0;
+
+    local uint32 pad = 0x40;
+    if (bitsPerPixel < 8 && heightDim > widthDim) pad = 0x80;
+    if (bitsPerPixel > 8)
+    {
+        pad = 0x20;
+        if (heightDim > widthDim) pad = 0x40;
+    }
+    
+    for (mip = 0; mip <= mipCount; ++mip)
+    {
+        mipSize = 0;
+        d = depth  >> mip; if (d == 0) d = 1; 
+        
+        // only worked when square power of 2
+        dimX = PS5MipMatrixXSq[(mip * 13) + w];
+        dimY = PS5MipMatrixYSq[(mip * 13) + h];
+        
+        if (bCompressedFormat) 
+        {
+        
+            dimX = (dimX + blockWidth - 1) / blockWidth;   
+            dimY = (dimY + blockHeight - 1) / blockHeight;
+            
+            mipSize = (dimX * dimY) * blockSize;
+        }
+        else
+        {
+            mipSize = (dimX * dimY) * (bitsPerPixel / 8);
+        }
+        
+        if(mip == 0)
+        {
+            mip0Size = mipSize;
+        }
+        
+        mipSize = mipSize * d;
+        
+        totalSize += mipSize;
+        
+        --w; if( w < 0 ) w = 0;
+        --h; if( h < 0 ) h = 0;
+    }
+    
+    return totalSize * planeCount * faceCount;
+}
+
+typedef struct 
+{
+    local uint start<hidden=true> = FTell();
+    TEX_EX_TYPE TYPE<fgcolor=cAqua>;
+    ubyte  COUNT<bgcolor=cBlack>; 
+    ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
+    local int CONSUMED = 0;
+    local uint64 ARRAY_DEPTH = 1;
+    local string str<hidden=true>;
+ // 21 ASTC table
+    if (TYPE == ASTC_TYPE && COUNT == 1) 
+    {   
+        eASTC_FORMAT KT_ASTC_FORMAT<fgcolor=cAqua>;
+        str = ASTC_STR(KT_ASTC_FORMAT);
+    } 
+    else if ((TYPE == WiiU_SWIZZLE || TYPE == N3DS_Wii_SWIZZLE) && COUNT == 1) 
+    { 
+        uint Wii_SWIZZLE<fgcolor=cAqua>;
+        str = Str("WiiU_SWIZZLE %d", Wii_SWIZZLE);
+    }
+    else if(TYPE == PS4_PLANE_ARRAY && COUNT == 32)
+    {   
+     // unsure what this is, Vector bases?
+        uint ID1;
+        float FLOAT1[4];
+        uint ID2;
+        float FLOAT2[4];
+        uint ID3;
+        float FLOAT3[5];
+        uint ID4;
+        float FLOAT4[4];
+        uint ID5;
+        float FLOAT5[4];
+        uint ID6;
+        float FLOAT6[5];
+        // I have no idea what this is
+        if(ID1 == 922948206) // also seen 922948207 but not the same depth
+        {
+            ARRAY_DEPTH = 2;
+        }
+        str = Str("PS4_PLANE_ARRAY %d", ID1);
+    } 
+    else if(COUNT != 0)
+    {
+     // unsure at the moment how this other data is used
+        uint EXTRA_INTS[COUNT]<comment="Sometimes used as KIDs">;
+        str = Str("0x%02X - %s x%d", TYPE, TEX_EX_STR(TYPE), COUNT);
+    }
+    else
+    {
+        str = Str("0x%02X - %s x%d", TYPE, TEX_EX_STR(TYPE), COUNT);
+    }
+} S_G1T_HEADER_EX<read=this.str, fgcolor=cLtBlue, optimize=false>;
+
 struct ktgl 
 {
-    local uint8 BigEndian<hidden=true> = false;
- // Magic check for endian systems
+    local uint8 bBigEndian<hidden=true> = false;
+ // Magic check
     if(ReadUInt() == 0x47543147)
     {
         BigEndian();
-        BigEndian = true;
+        bBigEndian = true;
     }
+    if( !(ReadUInt() == 0x47543147 || 
+        ReadUInt() == 0x47315447)
+    )
+    {
+        Assert(0 && "Not a G1TG file");
+    }
+    
+    local uint64 FileStart<hidden=true> = FTell();    
     
     struct 
     {
@@ -516,7 +1175,7 @@ struct ktgl
               (VERSION        & 0xFF) - 0x30;        
         } MAGICS<bgcolor=cDkRed>;
         uint32 FILE_SIZE<bgcolor=cBlack>;
-        uint32 TEX_OFFSET<comment="Offset table address", bgcolor=cLtRed,format=hex>;
+        uint32 TEX_OFFSET<comment="Offset table address", bgcolor=cLtRed>;
         uint32 TEX_COUNT<comment="Number of textures", bgcolor=cLtGreen, fgcolor=cWhite>;
         local int HEADER_SIZE = 20;
         if (MAGICS.VERSION_NUMBER < 30)
@@ -540,315 +1199,336 @@ struct ktgl
             uint32 HEADER_EX_SIZE<bgcolor=cLtBlue>;
             HEADER_SIZE += 8;
         }
-        local string SYSTEM_STR<hidden=true>;
-        switch (SYSTEM)
-        {
-            case PS2:
-                SYSTEM_STR = "PS2";
-                break;
-            case PS3:
-                SYSTEM_STR = "PS3";
-                break;
-            case X360:
-                SYSTEM_STR = "XBOX 360";
-                break;
-            case NWii:
-                SYSTEM_STR = "Nintendo Wii";
-                break;
-            case N3DS:
-                SYSTEM_STR = "Nintendo 3DS";
-                break;
-            case PSVita:
-                SYSTEM_STR = "PS Vita";
-                break;
-            case Android:
-                SYSTEM_STR = "Android";
-                break;
-            case iOS:
-                SYSTEM_STR = "iOS";
-                break;
-            case NWiiU:
-                SYSTEM_STR = "Nintendo Wii U";
-                break;
-            case WinMac:
-                SYSTEM_STR = "Windows / Mac";
-                break;
-            case PS4: 
-                SYSTEM_STR = "PS4";
-                break;
-            case WinDX12:
-                SYSTEM_STR = "Windows Direct-X 12";
-                break;
-            case NSwitch:
-                SYSTEM_STR = "Nintendo Switch";
-                break;
-            case PS5:
-                SYSTEM_STR = "PS5";
-                break;
-            default:
-                SYSTEM_STR = Str("Unknown System 0x%02X", SYSTEM);
-                break;
-        }
-    } S_G1T_HEADER<read=Str("%c%c%c%c v%d - %s",MAGICS.MAGIC[0],MAGICS.MAGIC[1],MAGICS.MAGIC[2],MAGICS.MAGIC[3], MAGICS.VERSION_NUMBER, this.SYSTEM_STR)>;
-    
- // Read offsets
-    struct
-    {
-        if(BigEndian)
-        {
-            ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
-            ubyte  COUNT<bgcolor=cBlack>; 
-            TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;            
-        }
-        else
-        {
-            TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;
-            ubyte  COUNT<bgcolor=cBlack>; 
-            ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
-        }
-    }S_G1T_TEX_ATTR_HEADER[S_G1T_HEADER.TEX_COUNT]<optimize=false, comment="Likely deprecated">;
+        local string S_SYSTEM<hidden=true> = SYSTEM_STR(SYSTEM);
+    } S_G1T_HEADER<read=Str("%c%c%c%c v%d - %s",MAGICS.MAGIC[0],MAGICS.MAGIC[1],MAGICS.MAGIC[2],MAGICS.MAGIC[3], MAGICS.VERSION_NUMBER, this.S_SYSTEM)>;
 
-    uint32 S_G1T_SKIP_TABLE[S_G1T_HEADER.TEX_COUNT]<comment="Likely deprecated, offets", fgcolor=cLtRed>;
+ // Move to start of skip table (can sometimes be 0s)
+    FSeek(FileStart + S_G1T_HEADER.TEX_OFFSET);
+
+ // Read offsets. Note: Files without a file size in the header don't have offset values
+ // Textures with Alpha Atlas also have wrong offsets as they used an increased BPP instead of increased height
+    uint32 S_G1T_SKIP_TABLE[S_G1T_HEADER.TEX_COUNT]<comment="Offsets can be off sometimes", fgcolor=cLtRed>;
     
+ // Trackers
+    local uint ex_amount<hidden=true> = 0;
     local int i <hidden=true> = 0;
+    local int returnto <hidden=true> =  FTell() + S_G1T_HEADER.HEADER_EX_SIZE;
+    local int readloc <hidden=true> = returnto;
+    local uint64 fileSize<hidden=true> = FileSize();
     
     if(S_G1T_HEADER.HEADER_EX_SIZE != 0)
     {
+        local uint ex_size_read<hidden=true> = 0;
+        
         struct 
         {
-            if(BigEndian)
+            do{
+                S_G1T_HEADER_EX G1T_HEADER_EX;
+                ex_size_read += (G1T_HEADER_EX.COUNT * 4) + 4;
+                ex_amount += 1;
+            } while(ex_size_read < S_G1T_HEADER.HEADER_EX_SIZE);
+            
+            if(ex_size_read != S_G1T_HEADER.HEADER_EX_SIZE)
             {
-                ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
-                ubyte  COUNT<bgcolor=cBlack>; 
-                TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;            
+                Printf("Extra header size. More data might be present\n");
             }
-            else
-            {
-                TEX_ATTR_TYPE TYPE<fgcolor=cAqua>;
-                ubyte  COUNT<bgcolor=cBlack>; 
-                ubyte  RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
-            }
-            local uint64 ARRAY_DEPTH = 1;
-         // 21 ASTC table
-            if (TYPE == ASTC_TYPE && COUNT == 1) 
-            {   
-                uint KT_ASTC_FORMAT<fgcolor=cAqua>;
-            } 
-            else if(TYPE == PS4_PLANE_ARRAY && COUNT == 32)
-            {   
-             // unsure what this is, Vector bases?
-                uint ID1;
-                float FLOAT1[4];
-                uint ID2;
-                float FLOAT2[4];
-                uint ID3;
-                float FLOAT3[5];
-                uint ID4;
-                float FLOAT4[4];
-                uint ID5;
-                float FLOAT5[4];
-                uint ID6;
-                float FLOAT6[5];
-                // I have no idea what this is
-                if(ID1 == 922948206)
-                {
-                    ARRAY_DEPTH = 2;
-                }
-            } 
-            else 
-            {
-             // unsure at the moment how this other data is used
-                uint EXTRA_INTS[COUNT]<comment="Sometimes used as KIDs">;
-            }
-        }S_G1T_HEADER_EX[S_G1T_HEADER.TEX_COUNT]<comment="Sometimes called S_G1T_TEX_ATTR_HEADER", fgcolor=cLtBlue, optimize=false>;
-    }
+        }S_G1T_EX_HEADERS;
+    }    
     
-    i = 0;
-    local int returnto <hidden=true> =  FTell();
-    local int readloc <hidden=true> = returnto;
-    local uint64 bufferLen<hidden=true> = FileSize();
-    
-    for(i = 0; i < S_G1T_HEADER.TEX_COUNT;i++)
+    for(i = 0; i < S_G1T_HEADER.TEX_COUNT; i++)
     {
-        FSeek(returnto);
         struct S_G1T_TEX 
         {
-            struct 
+            local uint32 bUseSwitchSize<hidden=true> = false;
+            local uint32 bUsePS5Size<hidden=true> = false;
+            
+            if( S_G1T_HEADER.SYSTEM == NSwitch )
             {
-                S_GT1_LOAD_TYPE KTGL_TEXTURE_TYPE : 4; // & 0xF
-                ubyte MIP_COUNT: 4; // >> 4
-                ubyte KTGL_PIXEL_FORMAT<fgcolor=cAqua, format=hex>;
-             // ASTC table
-                if( (KTGL_PIXEL_FORMAT - 0x7D) < 2 )
-                { 
-                    if(S_G1T_HEADER.HEADER_EX_SIZE != 0 && S_G1T_HEADER_EX[i].TYPE == ASTC_TYPE)
+                bUseSwitchSize = true;
+            }
+            
+            if( S_G1T_HEADER.SYSTEM == PS5 )
+            {
+                bUsePS5Size = true;
+            }
+            
+            if(S_G1T_HEADER.FILE_SIZE != 0)
+            {
+                FSeek(S_G1T_HEADER.HEADER_SIZE + (i * 4));
+                struct
+                {
+                 // These are just TEX_EX_TYPE but the size is uint not short so this is just a hack
+                    if(bBigEndian)
                     {
-                        local int ASTC_FORMAT = S_G1T_HEADER_EX[i].KT_ASTC_FORMAT;
+                        ubyte  RESERVED_CONSUMED<hidden=true, fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
+                        ubyte  COUNT<hidden=true, bgcolor=cBlack>; 
+                        TEX_EX_TYPE TYPE<fgcolor=cAqua>;
                     }
                     else
                     {
-                        local int ASTC_FORMAT = 0x0D; // hardcoded 12_12
+                        TEX_EX_TYPE TYPE<fgcolor=cAqua>;
+                        ubyte  COUNT<bgcolor=cBlack, hidden=true>; 
+                        ubyte  RESERVED_CONSUMED<hidden=true, fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
                     }
-                    local TEX_ENUMS tex_format = ASTC_SUB[ASTC_FORMAT * 5];
-                    local TEX_ENUMS tex_space =  ASTC_SUB[ASTC_FORMAT * 5 + 1];
-                    local TEX_ENUMS data_type =  ASTC_SUB[ASTC_FORMAT * 5 + 2];
-                    local float bitsPerPixel =    MakeBBP(ASTC_SUB[ASTC_FORMAT * 5 + 3]);
-                    local uint minBytes =       ASTC_SUB[ASTC_FORMAT * 5 + 4];
-                } 
-                else 
-                {
-                    local TEX_ENUMS tex_format = TEX_FORMS[KTGL_PIXEL_FORMAT * 5];
-                    local TEX_ENUMS tex_space =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 1];
-                    local TEX_ENUMS data_type =  TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 2];
-                    local float bitsPerPixel =    MakeBBP(TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 3]);
-                    local uint minBytes =       TEX_FORMS[KTGL_PIXEL_FORMAT * 5 + 4];
-                }
-                byte PACKED_WIDTH: 4,     // +2 & 0xF
-                     PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>;  // +2 >> 4
-                byte PACKED_DEPTH: 4<comment="Or Faces">, // + 3 & 0xF 
-                     READ_G1T_HEADER_EX : 4; // +3 >> 4
-                byte KTGL_GD_TEXADDRESS1: 4, // +4 & 0xF
-                     KTGL_GD_TEXADDRESS2: 4; // +4 > 4
-                byte KTGL_GD_TEXADDRESS3: 4, // +5 & 0xF
-                     KTGL_GD_TEXFILTER1: 4;  // +5 >> 4
-                byte KTGL_GD_TEXFILTER2: 4,  // +6 & 0xF
-                     KTGL_GD_MIPFILTER1: 4;  // +6 >> 4
-                byte KTGL_GD_MIPFILTER2: 4,  // +7 & 0xF
-                     HAS_TEX_EX_HEADER: 4;   // +7 >> 4
-            } S_G1T_TEX_HEADER<fgcolor=cLtGreen, open=true, optimize=false>;
-        
-            if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER > 0)
+                    
+                    if(TYPE == CHANNEL_SWAP)
+                    {
+                        bUseSwitchSize = false;
+                    }
+                }S_G1T_TEX_ATTR_HEADER<read=Str("0x%02X - %s", this.TYPE, TEX_EX_STR(this.TYPE)), optimize=false>;
+            }
+            else
             {
-                struct 
+                struct
+                {
+                    local TEX_EX_TYPE TYPE = 0;
+                    local ubyte COUNT = 0;
+                    local ubyte RESERVED_CONSUMED<fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed"> = 0;
+                }S_G1T_TEX_ATTR_HEADER<read=Str("0x%02X - %s", this.TYPE, TEX_EX_STR(this.TYPE)), optimize=false>;
+            }
+            
+            FSeek(returnto);
+        
+            struct 
+            {
+                S_GT1_LOAD_TYPE KTGL_TEXTURE_TYPE : 4;                 // & 0xF
+                ubyte MIP_COUNT: 4;                                    // >> 4
+                ubyte KTGL_PIXEL_FORMAT<fgcolor=cAqua, format=hex>;    // + 1
+                local TEX_ENUMS tex_format = TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5];
+                byte PACKED_WIDTH: 4,                                  // +2 & 0xF
+                     PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>; // +2 >> 4
+                byte PACKED_DEPTH: 4,        // + 3 & 0xF 
+                     READ_G1T_HEADER_EX: 4;  // +3 >> 4
+                byte KTGL_GD_TEXADDRESSU: 4, // +4 & 0xF
+                     KTGL_GD_TEXADDRESSV: 4; // +4 > 4
+                byte KTGL_GD_TEXADDRESSW: 4, // +5 & 0xF
+                     KTGL_GD_TEXMAGFILTER: 4;  // +5 >> 4
+                byte KTGL_GD_TEXMINFILTER: 4,  // +6 & 0xF
+                     KTGL_GD_MIPFILTER: 4;  // +6 >> 4
+                byte KTGL_GD_ANISO_SAMPLE_NUM: 4,  // +7 & 0xF
+                     HAS_TEX_EX_HEADER: 4;   // +7 >> 4
+                     
+                local uint32 WIDTH =  1 << PACKED_WIDTH;  if(WIDTH  < 1) WIDTH  = 1;
+                
+                local uint32 HEIGHT = 1 << PACKED_HEIGHT; if(HEIGHT < 1) HEIGHT = 1;
+                
+                local uint32 DEPTH =  1 << PACKED_DEPTH;  if(DEPTH  < 1) DEPTH  = 1;
+                
+                local uint32 MIPS = MIP_COUNT < 1 ? 1 : MIP_COUNT;
+                
+                local int bIsPower2 = true;
+                
+                if (HAS_TEX_EX_HEADER > 0)
                 {
                  // alot here is not read or used
-                    uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-2
-                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">; // 4-8
-                    ushort EX_FACES: 4<comment="MINI_MIP_LEVELS">, // +8 >> 4
-                           EX_ARRAY_COUNT : 12<fgcolor=cLtGreen, comment="AKA PlaneCount">;
-                    ubyte  EX_SWIZZLE; //  +10
-                    ubyte  KTGL_GD_COLOR_SPACE<fgcolor=cAqua, comment="0x01 = srgb_from_linear">; // +11
-                    local int EX_WIDTH = 0;
-                    local int EX_HEIGHT = 0;
+                    uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-4
+                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">;    // 4-8
+                    ushort EX_FACES: 4<comment="aka MINI_MIP_LEVELS">, // +8 & 0xF
+                           EX_ARRAY_COUNT : 12<fgcolor=cLtGreen, comment="AKA PlaneCount or MultiSample">;
+                    EX_SWIZZLE_TYPE  EX_SWIZZLE;                       //  +10
+                    COLOR_SPACE  KTGL_GD_COLOR_SPACE<fgcolor=cAqua>;   // +11 
                  // hard codes the full values if not power of 2
                     if (S_G1T_TEX_HEADER_EX_SIZE == 0x10) 
                     {
-                        int EX_FULL_WIDTH;
-                        EX_WIDTH = EX_FULL_WIDTH;
+                        int EX_WIDTH;
+                        if(EX_WIDTH != 0)
+                        {
+                            WIDTH = EX_WIDTH;
+                        }
+                        if (!isPowerOfTwo(EX_WIDTH))
+                        {
+	                        bIsPower2 = false;
+                        }
                     }
                     else if (S_G1T_TEX_HEADER_EX_SIZE == 0x14) 
                     {
-                        int EX_FULL_WIDTH;
-                        EX_WIDTH = EX_FULL_WIDTH;
-                        int EX_FULL_HEIGHT;
-                        EX_HEIGHT = EX_FULL_HEIGHT;
+                        int EX_WIDTH;
+                        if(EX_WIDTH != 0)
+                        {
+                            WIDTH = EX_WIDTH;
+                        }
+                        int EX_HEIGHT;
+                        if(EX_HEIGHT != 0)
+                        {
+                            HEIGHT = EX_HEIGHT;
+                        }
+                        if (!isPowerOfTwo(EX_WIDTH) || !isPowerOfTwo(EX_HEIGHT))
+                        {
+	                        bIsPower2 = false;
+                        }
                     }
                  // I havent seen a S_G1T_TEX_HEADER_EX with a size over 12
                     else if (S_G1T_TEX_HEADER_EX_SIZE != 0xC && S_G1T_TEX_HEADER_EX_SIZE > 0x14) 
                     {
-                        Printf(Str("Extra tex version on texture index #%d is not zero but data might be missing\n", i));
+                        Printf("Extra tex version on texture index #%d is not zero but data might be missing\n", i);
+                    }   
+                } 
+                else 
+                {
+                    if(ReadUInt() == 0x0C || ReadUInt() == 0x14) 
+                    {
+                        Printf("extra tex version is zero but data might be present\n");
                     }
-                } S_G1T_TEX_HEADER_EX<fgcolor=cLtBlue, open=true, optimize=false>;
+                }
+                
+                if (KTGL_TEXTURE_TYPE == CUBE)
+                {
+                    DEPTH = 6;
+                }
+                
+                local uint32 PLANE_COUNT = 1;
+                        
+                if (KTGL_TEXTURE_TYPE == PLANE_ARRAY)
+                {
+                    if ( HAS_TEX_EX_HEADER > 0 &&
+                         EX_ARRAY_COUNT != 0)
+                    {
+                        PLANE_COUNT = EX_ARRAY_COUNT;
+                    }
+                } 
+                else if (KTGL_TEXTURE_TYPE == CUBE_ARRAY)
+                {
+                    if (HAS_TEX_EX_HEADER > 0 &&
+                        EX_ARRAY_COUNT != 0)
+                    {
+                        PLANE_COUNT = EX_ARRAY_COUNT;
+                    } 
+                }
+                else if (KTGL_TEXTURE_TYPE == VOLUME)
+                {
+                    // sometimes hardcoded to 32
+                    if (HAS_TEX_EX_HEADER > 0 &&
+                        EX_ARRAY_COUNT != 0)
+                    {
+                        PLANE_COUNT = 1 << EX_ARRAY_COUNT;
+                    }
+                }
+                
+                local uint32 FACES = 1;
+            
+                if( HAS_TEX_EX_HEADER > 0 && 
+                    EX_FACES != 0)
+                {
+                    FACES = EX_FACES;
+                }
+                
+                if(bIsPower2 == false)
+                {
+                    bUseSwitchSize = false;
+                }
+                
+                local string str = Str(
+                    "0x%02X -%s %d x %d%s%s%s%s%s%s", 
+                    KTGL_PIXEL_FORMAT, 
+                    LOAD_TYPE_STR(KTGL_TEXTURE_TYPE),
+                    WIDTH, 
+                    HEIGHT,
+                    DEPTH > 1 ? Str(" (depth %d)",DEPTH) : "",
+                    MIPS > 1 ? Str(" (%d mips)",MIPS) : "",
+                    PLANE_COUNT > 1 ? Str(" (%d layers)",PLANE_COUNT) : "",
+                    FACES > 1 ? Str(" (%d faces)",FACES) : "",
+                    READ_G1T_HEADER_EX ? Str(" (EX headers x%d)", READ_G1T_HEADER_EX) :"",
+                    (HAS_TEX_EX_HEADER && EX_SWIZZLE) ? EX_SWIZZLE_STR(EX_SWIZZLE) : ""
+                    );
+            } S_G1T_TEX_HEADER<read=this.str, fgcolor=cLtGreen, optimize=false>;
+            
+            local eASTC_FORMAT ASTC_FORMAT<hidden=true> = -1;
+            local int EX_ARRAY_DEPTH<hidden=true> = 0;
+         // figure out if an EX header needs to be read
+            local int readEX<hidden=true> = S_G1T_TEX_HEADER.READ_G1T_HEADER_EX;
+            
+            if (readEX > ex_amount)
+            {
+                readEX = ex_amount;
+            }
+            
+            if( S_G1T_HEADER.HEADER_EX_SIZE == 0 )
+            {
+                readEX = 0;
+            }
+            
+            if ( S_G1T_HEADER.HEADER_EX_SIZE != 0 &&
+                 readEX != 0
+	            )
+            {
+                local int ex_start<hidden=true> = readEX - 1;
+                local int ex<hidden=true> = 0;
+                
+                for (ex = ex_start; ex < ex_amount; ex++)
+                {
+				    if (S_G1T_EX_HEADERS.G1T_HEADER_EX[ex].CONSUMED == 0 && readEX != 0)
+				    {
+                        local uint32 return_to<hidden=true> = FTell();
+                        FSeek(S_G1T_EX_HEADERS.G1T_HEADER_EX[ex].start);
+                        S_G1T_HEADER_EX EX_HEADER;
+                        FSeek(return_to);
+					    switch (EX_HEADER.TYPE)
+					    {
+                        case CHANNEL_SWAP:
+                            bUseSwitchSize = false;
+                            break;
+					    case PS4_PLANE_ARRAY:
+						    EX_ARRAY_DEPTH = EX_HEADER.ARRAY_DEPTH;
+						    break;
+					    case PSVITA_PS5_SWIZZLE:
+						    break;
+					    case ASTC_TYPE:
+						    ASTC_FORMAT = EX_HEADER.KT_ASTC_FORMAT;
+						    break;
+					    default:
+						    break;
+					    }
+                        S_G1T_EX_HEADERS.G1T_HEADER_EX[ex].CONSUMED = 1;
+                        readEX--;
+				    } 
+                }
+            }
+            
+         // ASTC table
+            if( (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT - 0x7D) < 2 ) // ASTC format
+            { 
+                local TEX_ENUMS texFormat = ASTC_SUB[ASTC_FORMAT * 5];
+                local TEX_ENUMS texSpace =  ASTC_SUB[ASTC_FORMAT * 5 + 1];
+                local TEX_ENUMS dataType =  ASTC_SUB[ASTC_FORMAT * 5 + 2];
+                local float bitsPerPixel =    MakeBBP(ASTC_SUB[ASTC_FORMAT * 5 + 3]);
+                local uint minBytes =       ASTC_SUB[ASTC_FORMAT * 5 + 4];
             } 
             else 
             {
-                if(ReadUInt() == 0x0C || ReadUInt() == 0x14) 
-                {
-                    Printf("extra tex version is zero but data might be present\n");
-                }
-            }  
+                local TEX_ENUMS texFormat = TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5];
+                local TEX_ENUMS texSpace =  TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 1];
+                local TEX_ENUMS dataType =  TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 2];
+                local float bitsPerPixel =    MakeBBP(TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 3]);
+                local uint minBytes =       TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 4];
+            }
             
             local uint64 offset<hidden=true> = FTell();    
             
-            local uint32 MIPS = S_G1T_TEX_HEADER.MIP_COUNT < 1 ? 1 : S_G1T_TEX_HEADER.MIP_COUNT;
+            local uint32 MIPS   = S_G1T_TEX_HEADER.MIPS;
             
-         // Find width
-            local uint32 WIDTH = 1 << S_G1T_TEX_HEADER.PACKED_WIDTH; if(WIDTH < 1) WIDTH = 1;
+            local uint32 WIDTH  = S_G1T_TEX_HEADER.WIDTH;
             
-            if ( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER > 0 &&
-                 S_G1T_TEX_HEADER_EX.EX_WIDTH > 0)
-            {
-                if( S_G1T_TEX_HEADER_EX.EX_WIDTH != 0) 
-                {
-                    WIDTH = S_G1T_TEX_HEADER_EX.EX_WIDTH;
-                }
-            }
+            local uint32 HEIGHT = S_G1T_TEX_HEADER.HEIGHT; 
             
-         // Find height
-            local uint32 HEIGHT = 1 << S_G1T_TEX_HEADER.PACKED_HEIGHT; if(HEIGHT < 1) HEIGHT = 1;
+            local uint32 DEPTH  = S_G1T_TEX_HEADER.DEPTH; 
             
-            if ( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER > 0 &&
-                 S_G1T_TEX_HEADER_EX.EX_HEIGHT > 0)
-            {
-                if( S_G1T_TEX_HEADER_EX.EX_HEIGHT != 0) 
-                {
-                    HEIGHT = S_G1T_TEX_HEADER_EX.EX_HEIGHT;
-                }
-            }
+            local uint32 FACES  = S_G1T_TEX_HEADER.FACES; 
             
-         // Find depth
-            local uint32 DEPTH = 1 << S_G1T_TEX_HEADER.PACKED_DEPTH; if(DEPTH < 1) DEPTH = 1;
+            local uint32 PLANE_COUNT = S_G1T_TEX_HEADER.PLANE_COUNT;
             
          // Unsure what this is
-            if(S_G1T_HEADER.HEADER_EX_SIZE != 0 && 
-                S_G1T_HEADER_EX[i].TYPE == PS4_PLANE_ARRAY)
+            if( EX_ARRAY_DEPTH != 0)
             {
-                DEPTH = S_G1T_HEADER_EX[i].ARRAY_DEPTH;
+                DEPTH = EX_ARRAY_DEPTH;
             }
             
-         // Find faces
-            local uint32 FACES = 1;
-            
-            if( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER != 0 && 
-                S_G1T_TEX_HEADER_EX.EX_FACES != 0)
-            {
-                FACES = S_G1T_TEX_HEADER_EX.EX_FACES;
-            }
-            
-         // Find arrays
-            local uint32 PLANE_COUNT = 1;
-                        
-            if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == PLANE_ARRAY)
-            {
-                if ( S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER != 0 &&
-                     S_G1T_TEX_HEADER_EX.EX_ARRAY_COUNT != 0)
-                {
-                    PLANE_COUNT = S_G1T_TEX_HEADER_EX.EX_ARRAY_COUNT;
-                }
-            } 
-            else if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == VOLUME)
-            {
-             // sometimes hardcoded to 32
-                if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER &&
-                    S_G1T_TEX_HEADER_EX.EX_ARRAY_COUNT != 0)
-                {
-                    PLANE_COUNT = 1 << S_G1T_TEX_HEADER.EX_ARRAY_COUNT;
-                }
-                else
-                {
-                    PLANE_COUNT = 32;
-                }
-            } 
-            else if (S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == CUBE ||
-                S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE == CUBE_ARRAY)
-            {
-                if (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER &&
-                    S_G1T_TEX_HEADER_EX.EX_ARRAY_COUNT != 0)
-                {
-                    PLANE_COUNT = 6 * S_G1T_TEX_HEADER_EX.EX_ARRAY_COUNT;
-                } 
-                else if(PLANE_COUNT < 6)
-                {
-                    PLANE_COUNT = 6;
-                }
-            }
-            
-            local uint32 bCompressedFormat = 0;
-            local uint32 bHasAlphaAtlas = 0;
+            local uint32 bCompressedFormat<hidden=true> = 0;
+            local uint32 blockWidth<hidden=true> = 1;
+            local uint32 blockHeight<hidden=true> = 1;
+            local uint32 bHasAlphaAtlas<hidden=true> = 0;
             local uint64 firstMipSize = 0;
+            local uint64 expectedBufferSize = 0;
             local uint64 totalTexBufferLen = 0;
-            local uint32 blockWidth = 1;
-            local uint32 blockHeight = 1;
             
          // Add special handlers
             switch (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT)
@@ -894,7 +1574,7 @@ struct ktgl
                     break;
                 case 0x7D: // ASTC
                 case 0x7E:
-                    switch (S_G1T_TEX_HEADER.TEX_FORMAT)
+                    switch (texFormat)
 		            {
 		            case 0x93B0: blockWidth = 4;  blockHeight = 4;  break;
 		            case 0x93B1: blockWidth = 5;  blockHeight = 4;  break;
@@ -912,11 +1592,14 @@ struct ktgl
 		            case 0x93BD: blockWidth = 12; blockHeight = 12; break;
 		            default: break;
 		            }
+                    bCompressedFormat = 1;
+                    break;
                 case 0x6F: // Alpha Atlas formats
                 case 0x70:
                  // Offsets on these format are off
                  // bitsPerPixel is adjusted for size but not the height
                     bHasAlphaAtlas = 1;  
+                    blockWidth = 4, blockHeight = 4;
                     bCompressedFormat = 1;
                     HEIGHT *= 2;
                     break;
@@ -924,48 +1607,153 @@ struct ktgl
                     break;
             }
             
+            local uint32 pAlignment<hidden=true> = 0;
+            
+            if( S_G1T_HEADER.SYSTEM == PS4 )
+            {
+                pAlignment = 4096;
+            }
+            
          // get the total size of the texture buffer
-            firstMipSize = TextureSizeWithMips(
-                WIDTH,
-                HEIGHT,
-                DEPTH,
-                1,
-                PLANE_COUNT,
-                FACES,
-                S_G1T_TEX_HEADER.minBytes,
-                blockWidth,
-                blockHeight,
-                bCompressedFormat,
-                S_G1T_TEX_HEADER.bitsPerPixel
-            );
+            if( bUseSwitchSize )
+            {
+                local uint32 UsedSwitchSize = true;
+                firstMipSize = SwitchTextureSizeWithMips(
+                    WIDTH,
+                    HEIGHT,
+                    1,
+                    1,
+                    1,
+                    blockWidth,
+                    blockHeight,
+                    minBytes,
+                    bitsPerPixel,
+                    bCompressedFormat,
+                    S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE
+                );
+                
+                totalTexBufferLen  = SwitchTextureSizeWithMips(
+                    WIDTH,
+                    HEIGHT,
+                    DEPTH,
+                    MIPS,
+                    PLANE_COUNT,
+                    blockWidth,
+                    blockHeight,
+                    minBytes,
+                    bitsPerPixel,
+                    bCompressedFormat,
+                    S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE
+                );
+                
+                expectedBufferSize = totalTexBufferLen;
+            }
+            else if(bUsePS5Size)
+            {
+                // we need the expected size
+                if(S_G1T_HEADER.TEX_COUNT == 1)
+                {
+                    totalTexBufferLen = fileSize - offset;
+                }
+                else
+                {
+                 // If there is more than one, check if it's not the last
+                    if(i < S_G1T_HEADER.TEX_COUNT - 1)
+                    {
+                        totalTexBufferLen = (S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1]) - offset;
+                    }
+                    else
+                    {
+                        totalTexBufferLen = fileSize - offset;
+                    }
+                }
+                
+                local int64 planeSize = totalTexBufferLen / PLANE_COUNT;
+                
+                local int64 depthSize = planeSize / DEPTH;
+                
+                firstMipSize = TextureSizeWithMips(
+                    WIDTH,
+                    HEIGHT,
+                    1,
+                    1,
+                    1,
+                    1,
+                    minBytes,
+                    blockWidth,
+                    blockHeight,
+                    bCompressedFormat,
+                    bitsPerPixel,
+                    pAlignment
+                );
+                
+                expectedBufferSize = totalTexBufferLen;
+            }
+            else
+            {
+                firstMipSize = TextureSizeWithMips(
+                    WIDTH,
+                    HEIGHT,
+                    1,
+                    1,
+                    1,
+                    1,
+                    minBytes,
+                    blockWidth,
+                    blockHeight,
+                    bCompressedFormat,
+                    bitsPerPixel,
+                    pAlignment
+                );
+                
+                totalTexBufferLen = TextureSizeWithMips(
+                    WIDTH,
+                    HEIGHT,
+                    DEPTH,
+                    MIPS,
+                    PLANE_COUNT,
+                    FACES,
+                    minBytes,
+                    blockWidth,
+                    blockHeight,
+                    bCompressedFormat,
+                    bitsPerPixel,
+                    pAlignment
+                );
+                
+                expectedBufferSize = totalTexBufferLen;
+            }
             
-            totalTexBufferLen = TextureSizeWithMips(
-                WIDTH,
+            local string str<hidden=true> = Str(
+                "%s -%s %d x %d%s%s%s%s%s%s", 
+                FORMAT_STR(S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT, ASTC_FORMAT), 
+                LOAD_TYPE_STR(S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE),
+                WIDTH, 
                 HEIGHT,
-                DEPTH,
-                MIPS,
-                PLANE_COUNT,
-                FACES,
-                S_G1T_TEX_HEADER.minBytes,
-                blockWidth,
-                blockHeight,
-                bCompressedFormat,
-                S_G1T_TEX_HEADER.bitsPerPixel
-            );
-            
+                DEPTH > 1 ? Str(" (depth %d)",DEPTH) : "",
+                MIPS > 1 ? Str(" (%d mips)",MIPS) : "",
+                PLANE_COUNT > 1 ? Str(" (%d layers)",PLANE_COUNT) : "",
+                FACES > 1 ? Str(" (%d faces)",FACES) : "",
+                S_G1T_TEX_HEADER.READ_G1T_HEADER_EX ? Str(" (EX headers x%d)", S_G1T_TEX_HEADER.READ_G1T_HEADER_EX) :"",
+                (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER && S_G1T_TEX_HEADER.EX_SWIZZLE) ? EX_SWIZZLE_STR(S_G1T_TEX_HEADER.EX_SWIZZLE) : ""
+                );
+
+            local uint bHasError<hidden=true> = 0;
          // Sanity check on texture data size
             if(S_G1T_HEADER.TEX_COUNT == 1)
             {
              // If there is only one texture, check if there is extra data and meet it
-                if(offset + totalTexBufferLen < bufferLen)
+                if(offset + totalTexBufferLen < fileSize)
                 {
-                    Printf(Str("Data size of %d but extra data found. Expecting %d bytes. Format might be incorrect.\n", totalTexBufferLen, bufferLen - offset));
-                    totalTexBufferLen = bufferLen - offset;
+                    local string errorMessage = Str("Data size of %d but expecting %d.", totalTexBufferLen, fileSize - offset);
+                    totalTexBufferLen = fileSize - offset;
+                    bHasError = 1;
                 }
-                else if (offset + totalTexBufferLen > bufferLen)
+                else if (offset + totalTexBufferLen > fileSize)
                 {
-                    Printf(Str("Data size of %d but more than the data left in the file %d. Format might be incorrect.\n", totalTexBufferLen, bufferLen - offset));
-                    totalTexBufferLen = bufferLen - offset;
+                    local string errorMessage = Str("Data size of %d but only %d left.", totalTexBufferLen, fileSize - offset);
+                    totalTexBufferLen = fileSize - offset;
+                    bHasError = 1;
                 }
             } 
             else 
@@ -982,23 +1770,26 @@ struct ktgl
                      // If next expected offset is ahead, meet it. But check for max file size.
                         if(expected_offset > offset + totalTexBufferLen)
                         {
-                            Printf(Str("Data found on texture %d was less than the expected. At %d instead of %d, format might be incorrect.\n", i, totalTexBufferLen, expected_offset - offset));
-                            if(offset + totalTexBufferLen + dif <=  bufferLen)
+                            if(offset + totalTexBufferLen + dif <= fileSize)
                             {
+                                local string errorMessage = Str("Data size on texture %d was %d but less than the expected %d.", i, totalTexBufferLen, expected_offset - offset);
                                 totalTexBufferLen += dif;
+                                bHasError = 1;
                             }
                             else
                             {
-                                Printf(Str("Data found on texture %d size difference more than the file size at %d, format might be incorrect.\n", i, offset + totalTexBufferLen));
+                                local string errorMessage = Str("Data size on texture %d was more than remaining file size of %d.", i, offset + totalTexBufferLen);
+                                bHasError = 1;
                             }
                         }
                         else
                      // If expected offset is under, warn and continue. But check for max file size.
                         {
-                            if(!bHasAlphaAtlas)
+                            if(!bHasAlphaAtlas && S_G1T_SKIP_TABLE[i + 1] != 0)
                             {
-                                Printf(Str("Data found on texture %d was more than expected at %d instead of %d, format might be incorrect.\n", i, totalTexBufferLen, expected_offset - offset));
+                                local string errorMessage = Str("Data size on texture %d was more than expected at %d instead of %d.", i, totalTexBufferLen, expected_offset - offset);
                                 totalTexBufferLen = expected_offset - offset;
+                                bHasError = 1;
                             }
                         }
                     }
@@ -1006,18 +1797,25 @@ struct ktgl
                 else 
                 {
                  // If this is the last texture, check if there is extra data and meet it
-                    if(offset + totalTexBufferLen < bufferLen)
+                    if(offset + totalTexBufferLen > fileSize)
                     {
-                        Printf(Str("Extra data found on texture %d with size of %d instead of %d, format might be incorrect.\n", i, totalTexBufferLen, bufferLen - offset));
-                        totalTexBufferLen = bufferLen - offset;
+                        local string errorMessage = Str("Data size on texture %d has extra size of %d instead of %d.\n", i, totalTexBufferLen, fileSize - offset);
+                        Printf(errorMessage);
+                        totalTexBufferLen = fileSize - offset;
+                        bHasError = 1;
                     }
                 }
+            }
+            
+            if(bHasError)
+            {
+                str = Str("%s (check error message)", str);
             }
 
             ubyte TEX_DATA[totalTexBufferLen]<comment="Textures are stored with their mipmaps in this array", format=hex, open=suppress, bgcolor=cDkBlue, fgcolor=cLtAqua>;
             
          // These formats have issues with the skip tables
-            if(bHasAlphaAtlas)
+            if(bHasAlphaAtlas || ((i < (S_G1T_HEADER.TEX_COUNT - 1) && S_G1T_SKIP_TABLE[i+1] == 0)))
             {
                 returnto = offset + totalTexBufferLen;
             }
@@ -1025,6 +1823,6 @@ struct ktgl
             {
                 returnto = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
             }
-        }S_G1T_TEX_ENTRY;
+        }S_G1T_TEX_ENTRY<read=this.str>;
     }
 }File<open=true>;

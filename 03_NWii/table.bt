@@ -13,7 +13,7 @@
 
 typedef enum <uint>
 {
-    GX_TL_IA8     = 0x00,
+    GX_TL_I4      = 0x00,
     GX_TF_I8      = 0x01,
     GX_TF_IA4     = 0x02,
     GX_TF_IA8	  = 0x03,

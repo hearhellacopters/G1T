@@ -31,6 +31,8 @@ typedef enum <uint> {
 typedef enum <ushort> {
     NONE     = 0,
     NO_ALPHA = 1,
+  //         = 2,
+  //         = 3,
     RED      = 4,
     GREEN    = 5,
     BLUE     = 6,
