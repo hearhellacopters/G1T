@@ -1,0 +1,63 @@
+//------------------------------------------------
+//--- 010 Editor v9.0.2 BinaryScript
+//
+//      File: TemplateG1TExport.1sc
+//   Depends: https://github.com/hearhellacopters/G1T/blob/main/G1T.bt
+//   Authors: Piken (DwayneR)
+//   Version: 1.0
+//   Purpose: Exports G1T texture containers
+//  Category: Image
+// File Mask: *.g1t
+//  ID Bytes: 
+//   History:
+//   2025-05-28  Piken - created
+//------------------------------------------------
+//#include "010TemplateG1T.bt"
+
+local string baseFileName = GetFileName();
+local int baseFileIndex = GetFileNum();
+
+// Why in the world does 010 require you to declare a counter outside the loop and doesn't support local loop scope?? :-/
+local int textureIndex = 0;
+local string outputFileName;
+local int textureWidth;
+local int textureHeight;
+local int textureFormat;
+local int textureStart;
+local ubyte textureData[];
+local int textureDataLength;
+local int outputFileIndex;
+
+void DumpData(int fileIndex, string fileName, ubyte data[])
+{
+    local int oldFileIndex = GetFileNum();
+    // What a silly scripting language that switching the current file can invalidate parameters
+    // already passed to your function. (face palm) So make a copy into a local array.
+    local ubyte dataCopy[sizeof(data)];
+    Memcpy(dataCopy, data, sizeof(data));
+
+    // TODO: Consider calling  HexOperation(HEXOP_SWAP_BYTES, 0, 0, (ushort)0 ); for Xbox 360 (or (uint)0 for 32-bit).
+
+    FileSelect(fileIndex);
+    WriteBytes(dataCopy, 0, sizeof(dataCopy));
+    FileSave(fileName);
+    FileClose();
+    FileSelect(oldFileIndex);
+}
+
+for (textureIndex = 0; textureIndex < File.S_G1T_HEADER.TEX_COUNT; ++textureIndex)
+{
+    //local int newFileIndex = FileNew(/*editAs*/ "Hex", /*makeActive*/ true);
+    textureWidth  = 1 << File.S_G1T_TEX_ENTRY[textureIndex].S_G1T_TEX_HEADER.PACKED_WIDTH;
+    textureHeight = 1 << File.S_G1T_TEX_ENTRY[textureIndex].S_G1T_TEX_HEADER.PACKED_HEIGHT;
+    textureFormat = File.S_G1T_TEX_ENTRY[textureIndex].S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT;
+    textureStart  = startof(File.S_G1T_TEX_ENTRY[textureIndex].TEX_DATA);
+    textureData   = File.S_G1T_TEX_ENTRY[textureIndex].TEX_DATA;
+    textureDataLength = sizeof(File.S_G1T_TEX_ENTRY[textureIndex].TEX_DATA);
+
+    SPrintf(outputFileName, "%s-%u-%08X-%08X-%ux%u-%s.dat", baseFileName, textureIndex, textureStart, textureStart + textureDataLength - 1, textureWidth, textureHeight, FORMAT_STR(textureFormat, 0));
+    Printf("%s\n", outputFileName);
+
+    outputFileIndex = FileNew(/*editAs*/ "Hex", /*makeActive*/ false);
+    DumpData(outputFileIndex, outputFileName, File.S_G1T_TEX_ENTRY[textureIndex].TEX_DATA);
+}
