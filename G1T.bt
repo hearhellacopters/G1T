@@ -3,12 +3,13 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 2.4
+//   Version: 2.5
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   2.5    2025-11-16  HearHellacopters: fixed 0x71 atlas alpha for size
 //   2.4    2025-05-01  HearHellacopters: Add new logic for reading ex headers
 //   2.3    2025-04-25  HearHellacopters: Added Nintendo Switch size padding
 //   2.2    2025-04-25  HearHellacopters: Fix for 0 files size error files and new enums
@@ -335,7 +336,7 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> =
     0x5584, 0x5584, 0x5580, 0x10,    0x02, // 0x6E SEC_R16 SEC_R16 SEC_UNORM
     0x8D64, 0x1907, 0x1401, 0x04,    0x08, // 0x6F GL_ETC1_RGB8_OES GL_RGB GL_UNSIGNED_BYTE (alpha under, bpp adjusted)
     0x8C00, 0x1907, 0x1401, 0x04,    0x08, // 0x70 GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG GL_RGB GL_UNSIGNED_BYTE
-    0x9278, 0x1908, 0x1401, 0x08,    0x10, // 0x71 GL_COMPRESSED_RGBA8_ETC2_EAC GL_RGBA GL_UNSIGNED_BYTE
+    0x9278, 0x1908, 0x1401, 0x04,    0x08, // 0x71 GL_COMPRESSED_RGBA8_ETC2_EAC GL_RGBA GL_UNSIGNED_BYTE (extra non-alpha under, bpp adjusted)
     0x8229, 0x1903, 0x1401, 0x08,    0x01, // 0x72 GL_R8 GL_RED GL_UNSIGNED_BYTE
     0x822B, 0x8227, 0x1401, 0x10,    0x02, // 0x73 GL_RG8 GL_RG GL_UNSIGNED_BYTE
     0x1B,   0x1E,   0x1E,   0x20,    0x04, // 0x74 DXGI_FORMAT_R8G8B8A8_TYPELESS DXGI_FORMAT_R8G8B8A8_UINT DXGI_FORMAT_R8G8B8A8_UINT
@@ -1559,7 +1560,6 @@ struct ktgl
                 case 0x64:
                 case 0x65:
                 case 0x66: 
-                case 0x71:
                 case 0x7A:
                 case 0x7B:
                 case 0x7C:
@@ -1596,6 +1596,7 @@ struct ktgl
                     break;
                 case 0x6F: // Alpha Atlas formats
                 case 0x70:
+                case 0x71: // Alpha Atlas formats
                  // Offsets on these format are off
                  // bitsPerPixel is adjusted for size but not the height
                     bHasAlphaAtlas = 1;  
