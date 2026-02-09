@@ -3,12 +3,13 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 2.5
+//   Version: 2.6
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   2.5    2026-02-08  HearHellacopters: Updated for compressed files with v66
 //   2.5    2025-11-16  HearHellacopters: fixed 0x71 atlas alpha for size
 //   2.4    2025-05-01  HearHellacopters: Add new logic for reading ex headers
 //   2.3    2025-04-25  HearHellacopters: Added Nintendo Switch size padding
@@ -491,7 +492,7 @@ string FORMAT_STR(ubyte num, uint astc)
         return "ASTC";  
     default: return Str("Unkown format %d", num);
     }
-}
+};
 
 local ushort ASTC_SUB[70]<hidden=true> = 
 {
@@ -551,7 +552,7 @@ string ASTC_STR(eASTC_FORMAT FORMAT)
     case ASTC_12x12: return "ASTC_12x12";
     default:         return "Unknown ASTC format";
     }
-}
+};
 
 typedef enum<uint32> 
 {
@@ -598,7 +599,7 @@ string SYSTEM_STR(PLATFORM SYSTEM)
     case PS5:     return "PS5";
     default:      return Str("Unknown System 0x%02X", SYSTEM);
     }
-}
+};
 
 typedef enum<ushort>
 {
@@ -703,7 +704,8 @@ string COLOR_SPACE_STR(int num)
 
 enum<ubyte> EX_SWIZZLE_TYPE
 {
-    DX12_64kb = 0x01,
+    DX12_64kb       = 0x01,
+    ZLIB_COMPRESSED = 0x03, // new to v66
 };
 
 string EX_SWIZZLE_STR(int num)
@@ -716,11 +718,14 @@ string EX_SWIZZLE_STR(int num)
     case DX12_64kb: 
         return " (DX12 64kb swizzle)";
         break;     
+    case ZLIB_COMPRESSED:
+        return " (zlib compressed)";
+        break; 
     default:
         return Str(" Unknown EX Swizzle %d", num);
         break;
     }
-}
+};
 
    // Function for ASTC bit size
 float MakeBBP(short value) 
@@ -740,11 +745,11 @@ float MakeBBP(short value)
      // For values <= 255, just return as a float
         return (float)(value);
     }
-}
+};
 
 uint32 Align(uint32 value, uint32 alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
-}
+};
 
 uint32 TextureSizeWithMips(
     uint32 width, 
@@ -821,14 +826,14 @@ uint32 TextureSizeWithMips(
     }
     
     return totalSize * arrayCount * faceCount;
-}
+};
 
 uint32 isPowerOfTwo(int n) {
   if (n <= 0) {
     return 0;
   }
   return (n & (n - 1)) == 0;
-}
+};
 
 uint32 nextPowerOfTwo(uint32 v) {
     if (v == 0) return 1;
@@ -840,11 +845,11 @@ uint32 nextPowerOfTwo(uint32 v) {
     v |= v >> 16;
     v++;
     return v;
-}
+};
 
 uint32 alignUp(uint32 value, uint32 alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
-}
+};
 
 uint32 block_height_enum(uint32 blocksY) {
     local uint32 h = blocksY + (blocksY / 2);
@@ -853,14 +858,14 @@ uint32 block_height_enum(uint32 blocksY) {
     if (h >= 32) return 4;
     if (h >= 16) return 2;
     return 1;
-}
+};
 
 uint32 mip_block_height(uint32 mipHeight, uint32 blockHeightEnum) {
     while (mipHeight <= (blockHeightEnum / 2) * 8 && blockHeightEnum > 1) {
         blockHeightEnum /= 2;
     }
     return blockHeightEnum;
-}
+};
 
 uint32 align_layer_size(uint32 layer_size, uint32 height, uint32 depth, uint32 block_height_enum) {
     local uint32 gob_height = block_height_enum;
@@ -881,14 +886,14 @@ uint32 align_layer_size(uint32 layer_size, uint32 height, uint32 depth, uint32 b
     }
 
     return layer_size;
-}
+};
 
 uint32 swizzled_mip_size(uint32 blocksX, uint32 blocksY, uint32 blocksZ,
                                  uint32 blockHeightEnum, uint32 blockSizeBytes) {
     local uint32 width_in_gobs = alignUp(blocksX * blockSizeBytes, 64) / 64;
     local uint32 height_in_gobs = (blocksY + (blockHeightEnum * 8 - 1)) / (blockHeightEnum * 8);
     return width_in_gobs * height_in_gobs * blocksZ * blockHeightEnum * 512; // GOB_SIZE
-}
+};
 
 uint SwitchTextureSizeWithMips(
     uint32 width, 
@@ -1083,7 +1088,7 @@ uint32 PS5TextureSizeWithMips(
     }
     
     return totalSize * planeCount * faceCount;
-}
+};
 
 typedef struct 
 {
@@ -1298,16 +1303,16 @@ struct ktgl
                 local TEX_ENUMS tex_format = TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5];
                 byte PACKED_WIDTH: 4,                                  // +2 & 0xF
                      PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>; // +2 >> 4
-                byte PACKED_DEPTH: 4,        // + 3 & 0xF 
-                     READ_G1T_HEADER_EX: 4;  // +3 >> 4
-                byte KTGL_GD_TEXADDRESSU: 4, // +4 & 0xF
-                     KTGL_GD_TEXADDRESSV: 4; // +4 > 4
-                byte KTGL_GD_TEXADDRESSW: 4, // +5 & 0xF
-                     KTGL_GD_TEXMAGFILTER: 4;  // +5 >> 4
-                byte KTGL_GD_TEXMINFILTER: 4,  // +6 & 0xF
-                     KTGL_GD_MIPFILTER: 4;  // +6 >> 4
-                byte KTGL_GD_ANISO_SAMPLE_NUM: 4,  // +7 & 0xF
-                     HAS_TEX_EX_HEADER: 4;   // +7 >> 4
+                byte PACKED_DEPTH: 4,                                  // + 3 & 0xF 
+                     READ_G1T_HEADER_EX: 4;                            // +3 >> 4
+                byte KTGL_GD_TEXADDRESSU: 4,                           // +4 & 0xF
+                     KTGL_GD_TEXADDRESSV: 4;                           // +4 > 4
+                byte KTGL_GD_TEXADDRESSW: 4,                           // +5 & 0xF
+                     KTGL_GD_TEXMAGFILTER: 4;                          // +5 >> 4
+                byte KTGL_GD_TEXMINFILTER: 4,                          // +6 & 0xF
+                     KTGL_GD_MIPFILTER: 4;                             // +6 >> 4
+                byte KTGL_GD_ANISO_SAMPLE_NUM: 4,                      // +7 & 0xF
+                     HAS_TEX_EX_HEADER: 4;                             // +7 >> 4
                      
                 local uint32 WIDTH =  1 << PACKED_WIDTH;  if(WIDTH  < 1) WIDTH  = 1;
                 
@@ -1322,12 +1327,12 @@ struct ktgl
                 if (HAS_TEX_EX_HEADER > 0)
                 {
                  // alot here is not read or used
-                    uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // 0-4
-                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">;    // 4-8
-                    ushort EX_FACES: 4<comment="aka MINI_MIP_LEVELS">, // +8 & 0xF
+                    uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // +8
+                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">;    // +12 / +4
+                    ushort EX_FACES: 4<comment="aka MINI_MIP_LEVELS">,               // +16 / +8 & 0xF
                            EX_ARRAY_COUNT : 12<fgcolor=cLtGreen, comment="AKA PlaneCount or MultiSample">;
-                    EX_SWIZZLE_TYPE  EX_SWIZZLE;                       //  +10
-                    COLOR_SPACE  KTGL_GD_COLOR_SPACE<fgcolor=cAqua>;   // +11 
+                    EX_SWIZZLE_TYPE  EX_SWIZZLE;                                     // +18 / +10
+                    COLOR_SPACE  KTGL_GD_COLOR_SPACE<fgcolor=cAqua>;                 // +19 / +11 
                  // hard codes the full values if not power of 2
                     if (S_G1T_TEX_HEADER_EX_SIZE == 0x10) 
                     {
@@ -1615,7 +1620,7 @@ struct ktgl
                 pAlignment = 4096;
             }
             
-         // get the total size of the texture buffer
+        // get the total size of the texture buffer
             if( bUseSwitchSize )
             {
                 local uint32 UsedSwitchSize = true;
@@ -1738,91 +1743,165 @@ struct ktgl
                 S_G1T_TEX_HEADER.READ_G1T_HEADER_EX ? Str(" (EX headers x%d)", S_G1T_TEX_HEADER.READ_G1T_HEADER_EX) :"",
                 (S_G1T_TEX_HEADER.HAS_TEX_EX_HEADER && S_G1T_TEX_HEADER.EX_SWIZZLE) ? EX_SWIZZLE_STR(S_G1T_TEX_HEADER.EX_SWIZZLE) : ""
                 );
-
-            local uint bHasError<hidden=true> = 0;
-         // Sanity check on texture data size
-            if(S_G1T_HEADER.TEX_COUNT == 1)
+                
+         // Some files have zlib compressed images now
+            if(S_G1T_TEX_HEADER.EX_SWIZZLE == ZLIB_COMPRESSED)
             {
-             // If there is only one texture, check if there is extra data and meet it
-                if(offset + totalTexBufferLen < fileSize)
+                struct 
                 {
-                    local string errorMessage = Str("Data size of %d but expecting %d.", totalTexBufferLen, fileSize - offset);
-                    totalTexBufferLen = fileSize - offset;
-                    bHasError = 1;
-                }
-                else if (offset + totalTexBufferLen > fileSize)
-                {
-                    local string errorMessage = Str("Data size of %d but only %d left.", totalTexBufferLen, fileSize - offset);
-                    totalTexBufferLen = fileSize - offset;
-                    bHasError = 1;
-                }
-            } 
-            else 
-            {
-             // If there is more than one, check if it's not the last
-                if(i < S_G1T_HEADER.TEX_COUNT - 1)
-                {
-                    local uint64 expected_offset<hidden=true> = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
-                    local uint64 dif<hidden=true> = expected_offset - (offset + totalTexBufferLen);
-                 // Check if the size matchs the next texture.
-                 // if not, adjust based on if over or under.
-                    if(expected_offset != offset + totalTexBufferLen)
+                    struct 
                     {
-                     // If next expected offset is ahead, meet it. But check for max file size.
-                        if(expected_offset > offset + totalTexBufferLen)
+                        char COMPED_VER_NUM[4];
+                        int COMPED_TABLE_SIZE;
+                        local int LeftToRead<hidden=true> = COMPED_TABLE_SIZE-8;
+                        int COMPED_UKN1; LeftToRead -= 4;
+                        int COMPED_WINDOW_SIZE; LeftToRead -= 4;
+                        int COMPED_META1; LeftToRead -= 4;
+                        int COMPED_CHUNKS; LeftToRead -= 4;
+                        int COMPED_META2; LeftToRead -= 4;
+                        int COMPED_UNCOMPED_CHUNKS; LeftToRead -= 4;
+                        int COMPED_UNCOMPED_CHUNK_SIZE; LeftToRead -= 4;
+                        local int UNCOMPED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNKS * COMPED_UNCOMPED_CHUNK_SIZE);
+                        local int64 EXPECTED_SIZE = expectedBufferSize;
+                    } S_COMPED_HEADER<fgcolor=cLtRed, optimize=false, read=Str("Uncompressed size %d, expecting %d", this.UNCOMPED_SIZE, this.EXPECTED_SIZE)>;
+                    
+                    for(i = 0; i < (S_COMPED_HEADER.COMPED_META1 * DEPTH * FACES * PLANE_COUNT); i++)
+                    {
+                        struct 
                         {
-                            if(offset + totalTexBufferLen + dif <= fileSize)
-                            {
-                                local string errorMessage = Str("Data size on texture %d was %d but less than the expected %d.", i, totalTexBufferLen, expected_offset - offset);
-                                totalTexBufferLen += dif;
-                                bHasError = 1;
-                            }
-                            else
-                            {
-                                local string errorMessage = Str("Data size on texture %d was more than remaining file size of %d.", i, offset + totalTexBufferLen);
-                                bHasError = 1;
-                            }
-                        }
-                        else
-                     // If expected offset is under, warn and continue. But check for max file size.
+                            int COMPED_META1_DATA1;
+                            int COMPED_META1_DATA2;
+                            int COMPED_META1_DATA3;
+                            int COMPED_META1_DATA4;
+                        }S_COMPED_META1<fgcolor=cLtGreen, optimize=false>;
+                    }
+                    for(i = 0; i < S_COMPED_HEADER.COMPED_META2 * DEPTH * FACES * PLANE_COUNT; i++)
+                    {
+                        struct 
                         {
-                            if(!bHasAlphaAtlas && S_G1T_SKIP_TABLE[i + 1] != 0)
-                            {
-                                local string errorMessage = Str("Data size on texture %d was more than expected at %d instead of %d.", i, totalTexBufferLen, expected_offset - offset);
-                                totalTexBufferLen = expected_offset - offset;
-                                bHasError = 1;
-                            }
-                        }
+                            int COMPED_META2_DATA1;
+                            int COMPED_META2_DATA2;
+                            int COMPED_META2_DATA3;
+                            int COMPED_META2_DATA4;
+                        }S_COMPED_META2<fgcolor=cLtBlue, optimize=false>;
+                    }
+                    for(i = 0; i < S_COMPED_HEADER.COMPED_CHUNKS; i++)
+                    {
+                        struct 
+                        {
+                            int OFFSET;
+                            INT SIZE;
+                        }S_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false>;
+                    }
+                    for(i = 0; i < S_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS; i++)
+                    {
+                        struct 
+                        {
+                            int OFFSET;
+                            INT SIZE;
+                        }S_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false>;
+                    }
+                    for(i = 0; i < S_COMPED_HEADER.COMPED_CHUNKS; i++)
+                    {
+                        struct 
+                        {
+                            int DATA_SIZE;
+                            byte ZIP_DATA[DATA_SIZE];
+                        }COMPRESSED_DATA<fgcolor=cLtBlue, optimize=false>;
+                    }
+                    if(S_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS)
+                    {
+                        byte UNCOMPRESSED_DATA[S_COMPED_HEADER.COMPED_UNCOMPED_CHUNK_SIZE]<fgcolor=cLtPurple, optimize=false>;
+                    }
+                }S_G1T_COMPED<fgcolor=cLtPurple, optimize=false, read=Str("Uncompressed size %d, expecting %d", S_COMPED_HEADER.UNCOMPED_SIZE, S_COMPED_HEADER.EXPECTED_SIZE)>;
+            }
+            else
+            {    
+                local uint bHasError<hidden=true> = 0;
+             // Sanity check on texture data size
+                if(S_G1T_HEADER.TEX_COUNT == 1)
+                {
+                 // If there is only one texture, check if there is extra data and meet it
+                    if(offset + totalTexBufferLen < fileSize)
+                    {
+                        local string errorMessage = Str("Data size of %d but expecting %d.", totalTexBufferLen, fileSize - offset);
+                        totalTexBufferLen = fileSize - offset;
+                        bHasError = 1;
+                    }
+                    else if (offset + totalTexBufferLen > fileSize)
+                    {
+                        local string errorMessage = Str("Data size of %d but only %d left.", totalTexBufferLen, fileSize - offset);
+                        totalTexBufferLen = fileSize - offset;
+                        bHasError = 1;
                     }
                 } 
                 else 
                 {
-                 // If this is the last texture, check if there is extra data and meet it
-                    if(offset + totalTexBufferLen > fileSize)
+                 // If there is more than one, check if it's not the last
+                    if(i < S_G1T_HEADER.TEX_COUNT - 1)
                     {
-                        local string errorMessage = Str("Data size on texture %d has extra size of %d instead of %d.\n", i, totalTexBufferLen, fileSize - offset);
-                        Printf(errorMessage);
-                        totalTexBufferLen = fileSize - offset;
-                        bHasError = 1;
+                        local uint64 expected_offset<hidden=true> = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
+                        local uint64 dif<hidden=true> = expected_offset - (offset + totalTexBufferLen);
+                     // Check if the size matchs the next texture.
+                     // if not, adjust based on if over or under.
+                        if(expected_offset != offset + totalTexBufferLen)
+                        {
+                         // If next expected offset is ahead, meet it. But check for max file size.
+                            if(expected_offset > offset + totalTexBufferLen)
+                            {
+                                if(offset + totalTexBufferLen + dif <= fileSize)
+                                {
+                                    local string errorMessage = Str("Data size on texture %d was %d but less than the expected %d.", i, totalTexBufferLen, expected_offset - offset);
+                                    totalTexBufferLen += dif;
+                                    bHasError = 1;
+                                }
+                                else
+                                {
+                                    local string errorMessage = Str("Data size on texture %d was more than remaining file size of %d.", i, offset + totalTexBufferLen);
+                                    bHasError = 1;
+                                }
+                            }
+                            else
+                         // If expected offset is under, warn and continue. But check for max file size.
+                            {
+                                if(!bHasAlphaAtlas && S_G1T_SKIP_TABLE[i + 1] != 0)
+                                {
+                                    local string errorMessage = Str("Data size on texture %d was more than expected at %d instead of %d.", i, totalTexBufferLen, expected_offset - offset);
+                                    totalTexBufferLen = expected_offset - offset;
+                                    bHasError = 1;
+                                }
+                            }
+                        }
+                    } 
+                    else 
+                    {
+                     // If this is the last texture, check if there is extra data and meet it
+                        if(offset + totalTexBufferLen > fileSize)
+                        {
+                            local string errorMessage = Str("Data size on texture %d has extra size of %d instead of %d.\n", i, totalTexBufferLen, fileSize - offset);
+                            totalTexBufferLen = fileSize - offset;
+                            bHasError = 1;
+                        }
                     }
                 }
-            }
-            
-            if(bHasError)
-            {
-                str = Str("%s (check error message)", str);
-            }
-
-            ubyte TEX_DATA[totalTexBufferLen]<comment="Textures are stored with their mipmaps in this array", format=hex, open=suppress, bgcolor=cDkBlue, fgcolor=cLtAqua>;
-            
-         // These formats have issues with the skip tables
-            if(bHasAlphaAtlas || ((i < (S_G1T_HEADER.TEX_COUNT - 1) && S_G1T_SKIP_TABLE[i+1] == 0)))
-            {
-                returnto = offset + totalTexBufferLen;
-            }
-            else if(S_G1T_HEADER.TEX_COUNT != i+1)
-            {
-                returnto = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
+                
+                if(bHasError)
+                {
+                    str = Str("%s (check error message)", str);
+                    Printf(errorMessage);
+                }
+    
+                ubyte TEX_DATA[totalTexBufferLen]<comment="Textures are stored with their mipmaps in this array", format=hex, open=suppress, bgcolor=cDkBlue, fgcolor=cLtAqua>;
+                
+             // These formats have issues with the skip tables
+                if(bHasAlphaAtlas || ((i < (S_G1T_HEADER.TEX_COUNT - 1) && S_G1T_SKIP_TABLE[i+1] == 0)))
+                {
+                    returnto = offset + totalTexBufferLen;
+                }
+                else if(S_G1T_HEADER.TEX_COUNT != i+1)
+                {
+                    returnto = S_G1T_HEADER.TEX_OFFSET + S_G1T_SKIP_TABLE[i+1];
+                }
             }
         }S_G1T_TEX_ENTRY<read=this.str>;
     }
