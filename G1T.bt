@@ -1758,9 +1758,9 @@ struct ktgl
                         int COMPED_META1;
                         int COMPED_CHUNKS;
                         int COMPED_META2;
-                        int COMPED_UNCOMPED_CHUNKS;
+                        int COMPED_HAS_UNCOMPED_CHUNK;
                         int COMPED_UNCOMPED_CHUNK_SIZE;
-                        local int UNCOMPRESSED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNKS * COMPED_UNCOMPED_CHUNK_SIZE);
+                        local int UNCOMPRESSED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNK_SIZE);
                         local int64 EXPECTED_SIZE = expectedBufferSize;
                     } S_G1T_COMPED_HEADER<fgcolor=cLtRed, optimize=false, read=Str("Uncompressed size %d, expecting %d", this.UNCOMPRESSED_SIZE, this.EXPECTED_SIZE)>;
                     
@@ -1793,13 +1793,13 @@ struct ktgl
                             INT SIZE; COMPRESSED_SIZE += SIZE;
                         }S_G1T_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false, read=Str("@ 0x%X for %d bytes", this.OFFSET, this.SIZE)>;
                     }
-                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS; i++)
+                    if(S_G1T_COMPED_HEADER.COMPED_HAS_UNCOMPED_CHUNK)
                     {
                         struct 
                         {
                             int OFFSET<comment="From file start">;
                             INT SIZE; COMPRESSED_SIZE += SIZE;
-                        }S_G1T_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false, read=Str("@ 0x%X for %d bytes", this.OFFSET, this.SIZE)>;
+                        }S_G1T_UNCOMPED_OFFSETS<fgcolor=cLtRed, optimize=false, read=Str("@ 0x%X for %d bytes", this.OFFSET, this.SIZE)>;
                     }
                 }S_G1T_COMPED<fgcolor=cLtPurple, optimize=false, read=Str("Comped %d / Uncomped %d, expecting %d", this.COMPRESSED_SIZE, S_G1T_COMPED_HEADER.UNCOMPRESSED_SIZE, S_G1T_COMPED_HEADER.EXPECTED_SIZE)>;
                 
@@ -1813,7 +1813,7 @@ struct ktgl
                             byte ZIP_DATA[DATA_SIZE];
                         }COMPRESSED_DATA<fgcolor=cLtBlue, optimize=false>;
                     }
-                    if(S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS)
+                    if(S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_HAS_UNCOMPED_CHUNK)
                     {
                         byte UNCOMPRESSED_DATA[S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNK_SIZE]<fgcolor=cLtPurple, optimize=false>;
                     }
