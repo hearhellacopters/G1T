@@ -1753,55 +1753,59 @@ struct ktgl
                     {
                         char COMPED_VER_NUM[4];
                         int COMPED_TABLE_SIZE;
-                        local int LeftToRead<hidden=true> = COMPED_TABLE_SIZE-8;
-                        int COMPED_UKN1; LeftToRead -= 4;
-                        int COMPED_WINDOW_SIZE; LeftToRead -= 4;
-                        int COMPED_META1; LeftToRead -= 4;
-                        int COMPED_CHUNKS; LeftToRead -= 4;
-                        int COMPED_META2; LeftToRead -= 4;
-                        int COMPED_UNCOMPED_CHUNKS; LeftToRead -= 4;
-                        int COMPED_UNCOMPED_CHUNK_SIZE; LeftToRead -= 4;
-                        local int UNCOMPED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNKS * COMPED_UNCOMPED_CHUNK_SIZE);
+                        int COMPED_UKN1;
+                        int COMPED_WINDOW_SIZE;
+                        int COMPED_META1;
+                        int COMPED_CHUNKS;
+                        int COMPED_META2;
+                        int COMPED_UNCOMPED_CHUNKS;
+                        int COMPED_UNCOMPED_CHUNK_SIZE;
+                        local int UNCOMPRESSED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNKS * COMPED_UNCOMPED_CHUNK_SIZE);
                         local int64 EXPECTED_SIZE = expectedBufferSize;
-                    } S_COMPED_HEADER<fgcolor=cLtRed, optimize=false, read=Str("Uncompressed size %d, expecting %d", this.UNCOMPED_SIZE, this.EXPECTED_SIZE)>;
+                    } S_G1T_COMPED_HEADER<fgcolor=cLtRed, optimize=false, read=Str("Uncompressed size %d, expecting %d", this.UNCOMPRESSED_SIZE, this.EXPECTED_SIZE)>;
                     
-                    for(i = 0; i < (S_COMPED_HEADER.COMPED_META1 * DEPTH * FACES * PLANE_COUNT); i++)
+                    for(i = 0; i < (S_G1T_COMPED_HEADER.COMPED_META1 * DEPTH * FACES * PLANE_COUNT); i++)
                     {
                         struct 
                         {
-                            int COMPED_META1_DATA1;
-                            int COMPED_META1_DATA2;
-                            int COMPED_META1_DATA3;
-                            int COMPED_META1_DATA4;
-                        }S_COMPED_META1<fgcolor=cLtGreen, optimize=false>;
+                            int COMPED_META_DATA1;
+                            int COMPED_META_DATA2;
+                            int COMPED_META_DATA3;
+                            int COMPED_META_DATA4;
+                        }S_G1T_COMPED_META1<fgcolor=cLtGreen, optimize=false>;
                     }
-                    for(i = 0; i < S_COMPED_HEADER.COMPED_META2 * DEPTH * FACES * PLANE_COUNT; i++)
+                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_META2 * DEPTH * FACES * PLANE_COUNT; i++)
                     {
                         struct 
                         {
-                            int COMPED_META2_DATA1;
-                            int COMPED_META2_DATA2;
-                            int COMPED_META2_DATA3;
-                            int COMPED_META2_DATA4;
-                        }S_COMPED_META2<fgcolor=cLtBlue, optimize=false>;
+                            int COMPED_META_DATA1;
+                            int COMPED_META_DATA2;
+                            int COMPED_META_DATA3<format=hex>;
+                            int COMPED_META_DATA4<format=hex>;
+                        }S_G1T_COMPED_META2<fgcolor=cLtBlue, optimize=false>;
                     }
-                    for(i = 0; i < S_COMPED_HEADER.COMPED_CHUNKS; i++)
+                    local int64 COMPRESSED_SIZE = 0;
+                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_CHUNKS; i++)
                     {
                         struct 
                         {
-                            int OFFSET;
-                            INT SIZE;
-                        }S_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false>;
+                            int OFFSET<comment="From file start">;
+                            INT SIZE; COMPRESSED_SIZE += SIZE;
+                        }S_G1T_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false, read=Str("@ 0x%X for %d bytes", this.OFFSET, this.SIZE)>;
                     }
-                    for(i = 0; i < S_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS; i++)
+                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS; i++)
                     {
                         struct 
                         {
-                            int OFFSET;
-                            INT SIZE;
-                        }S_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false>;
+                            int OFFSET<comment="From file start">;
+                            INT SIZE; COMPRESSED_SIZE += SIZE;
+                        }S_G1T_COMPED_OFFSETS<fgcolor=cLtRed, optimize=false, read=Str("@ 0x%X for %d bytes", this.OFFSET, this.SIZE)>;
                     }
-                    for(i = 0; i < S_COMPED_HEADER.COMPED_CHUNKS; i++)
+                }S_G1T_COMPED<fgcolor=cLtPurple, optimize=false, read=Str("Comped %d / Uncomped %d, expecting %d", this.COMPRESSED_SIZE, S_G1T_COMPED_HEADER.UNCOMPRESSED_SIZE, S_G1T_COMPED_HEADER.EXPECTED_SIZE)>;
+                
+                struct
+                {
+                    for(i = 0; i < S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_CHUNKS; i++)
                     {
                         struct 
                         {
@@ -1809,11 +1813,11 @@ struct ktgl
                             byte ZIP_DATA[DATA_SIZE];
                         }COMPRESSED_DATA<fgcolor=cLtBlue, optimize=false>;
                     }
-                    if(S_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS)
+                    if(S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNKS)
                     {
-                        byte UNCOMPRESSED_DATA[S_COMPED_HEADER.COMPED_UNCOMPED_CHUNK_SIZE]<fgcolor=cLtPurple, optimize=false>;
+                        byte UNCOMPRESSED_DATA[S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_UNCOMPED_CHUNK_SIZE]<fgcolor=cLtPurple, optimize=false>;
                     }
-                }S_G1T_COMPED<fgcolor=cLtPurple, optimize=false, read=Str("Uncompressed size %d, expecting %d", S_COMPED_HEADER.UNCOMPED_SIZE, S_COMPED_HEADER.EXPECTED_SIZE)>;
+                }S_G1T_COMPED_DATA<bgcolor=cDkBlue, fgcolor=cLtAqua, read=Str("Size %d", sizeof(this))>;
             }
             else
             {    
