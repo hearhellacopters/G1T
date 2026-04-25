@@ -3,12 +3,13 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 2.6
+//   Version: 2.7
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
 //  ID Bytes: 
 //   History:
+//   2.7    2026-02-08  HearHellacopters: Added code names to system enum
 //   2.5    2026-02-08  HearHellacopters: Updated for compressed files with v66
 //   2.5    2025-11-16  HearHellacopters: fixed 0x71 atlas alpha for size
 //   2.4    2025-05-01  HearHellacopters: Add new logic for reading ex headers
@@ -556,7 +557,7 @@ string ASTC_STR(eASTC_FORMAT FORMAT)
 
 typedef enum<uint32> 
 {
-    PS2      = 0x00, // <- didn't find a game with g1t files
+    PS2      = 0x00, // <- didn't find a game with g1t files (aka x32)
     PS3      = 0x01, // Special Tiled Z Morton Swizzling
     X360     = 0x02, // Extra Special Tiling Swizzling
     NWii     = 0x03, // 
@@ -566,16 +567,17 @@ typedef enum<uint32>
     Android  = 0x07, // 
     iOS      = 0x08, // 
     NWiiU    = 0x09, // Big Endian
-    WinMac   = 0x0A, // They share the same enum
-    PS4      = 0x0B, // Special Z Morton Swizzling
-  //XOne     = 0x0C, // <- Need rom to confrim
+    WinMac   = 0x0A, // They share the same enum (aka x64)
+    PS4      = 0x0B, // Special Z Morton Swizzling (aka orbis)
+  //XOne     = 0x0C, // <- Need rom to confrim (aka X3)
   //???      = 0x0D, //
     WinDX12  = 0x0E, // 
   //???      = 0x0F, //
     NSwitch  = 0x10, // 
   //???      = 0x11, //
   //???      = 0x12, //
-    PS5      = 0x13, //
+    PS5      = 0x13, // (aka perspero)
+  //XBXS     = 0x14, // (aka X4)
 } PLATFORM;
 
 string SYSTEM_STR(PLATFORM SYSTEM) 
