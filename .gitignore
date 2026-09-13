@@ -2,3 +2,9 @@
 *.idb
 *.png
 *_GAME_FILES*
+*.apk
+*.zip
+*.id0
+*.id1
+*.nam
+*.pdb

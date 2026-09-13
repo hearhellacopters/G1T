@@ -3,12 +3,14 @@
 //
 //      File: Koei Tecmo Texture Container
 //   Authors: Raytwo, HealingBrew, Joschuka, HearHellacopters
-//   Version: 2.7
+//   Version: 2.9
 //   Purpose: Parsing G1T texture containers
 //  Category: Image
 // File Mask: *.g1t
-//  ID Bytes: 
+//  ID Bytes:
 //   History:
+//   2.9    2026-08-05  HearHellacopters: Documented the header/attribute/offset table layout confirmed on samples, and what ktgl::CDX11GraphicsDevice::ReadG1THeader actually reads. Parsing unchanged.
+//   2.8    2026-08-05  HearHellacopters: Fixed undefined identifiers left from the KTGL_PLATFORM enum rename (TEX_ENUMS, PLATFORM, NSwitch, PS4, PS5) and guarded EX_SWIZZLE access
 //   2.7    2026-02-08  HearHellacopters: Added code names to system enum
 //   2.5    2026-02-08  HearHellacopters: Updated for compressed files with v66
 //   2.5    2025-11-16  HearHellacopters: fixed 0x71 atlas alpha for size
@@ -28,199 +30,423 @@
 //   1.1.1  2019-08-23  Raytwo: Added the normal map flag table
 //   1.1    2019-09-08  Raytwo: Added support for RGBA8 internal format
 //   1.0    2019-08-22  Raytwo: Made the original file
+//
+//   ###################################################################
+//   #  IF THIS G1T IS IN AN EFFECT PACK: THE ENTRY ORDER IS A CONTRACT #
+//   ###################################################################
+//
+//   When a G1T ships beside G1FX and G1EM files, the effects address its textures
+//   BY POSITION and nothing else. The engine loads the whole G1T as one
+//   CDX11TexContext, which is just { int m_texNum; TEXELEM *m_pTexTable[]; }, and
+//   an effect resolves a texture as m_pTexTable[nTexID] where nTexID is an
+//   integer stored in the G1FX. No name, no hash, no id, in either direction.
+//   This file has no idea anything is pointing at it.
+//
+//   So for a G1T inside an effect pack:
+//     * Inserting, removing or reordering ANY entry silently repoints every
+//       effect that indexes past it. Nothing errors, at load or at draw; an out
+//       of range index just binds a null texture and the draw still happens.
+//     * A multi map effect material occupies a CONSECUTIVE RUN of entries. The
+//       base map is nTexID, the normal map and the rest are nTexID+1, nTexID+2
+//       and so on. Splitting such a run apart breaks the material even though
+//       every individual texture is still present.
+//     * Appending at the END is the only edit that is safe by construction.
+//
+//   None of this applies to a G1T used by a G1M, which binds through the
+//   material and texture stage tables instead. It is specific to effect packs.
+//   The full chain, with addresses, is in G1FX.bt under ASSET BINDING and in
+//   G1EM.bt under HOW A G1EM GETS A TEXTURE.
+//
+//   PROVENANCE
+//   Breadcrumbs for re-checking this against a future build. Symbol names are
+//   the durable handle; the addresses only mean anything in the build named
+//   beside them, so always match on the name first.
+//
+//   Builds used here:
+//     [WIN]  SAN14_EN.exe.unpacked.exe    Windows x64,   imagebase 0x140000000
+//     [OES2] libMusouSPS_sandbox.so       Android ARM32, imagebase 0
+//                                         ships the S_* structure and enum
+//                                         declarations, not just the code
+//
+//   Header and texture headers
+//     [OES2] ktgl::S_G1T_HEADER (28 bytes: magic, version, fileBC, localBC,
+//            texNum, platform, attrBC), S_G1T_TEX_HEADER (8, all bitfields),
+//            S_G1T_TEX_HEADER_EX (12), S_G1T_TEX_ATTR_HEADER (4)
+//     [OES2] S_G1T_HEADER::SizeOfBasic                     0x349D58
+//     [OES2] S_G1T_HEADER::GetJumpTableSize                0x349E1C
+//     [OES2] S_G1T_HEADER::IsNotSupportedVersion           0x349D78
+//     [OES2] S_G1T_TEX_HEADER::HasExHeader                 0x349CC4
+//     [OES2] S_G1T_TEX_HEADER_EX::S_G1T_TEX_HEADER_EX      0x349C58
+//     [OES2] COES2GraphicsDevice::ReadG1THeader            0x349DD8
+//     [OES2] COES2GraphicsDevice::CreateTexContextBody     0x339D98
+//     [OES2] COES2GraphicsDevice::GetSkipLevelNumAndG1TTexHeader  0x33B0C4
+//     THE SKIP LEVEL IS NOT A FILE FIELD. Traced on [D182-64]:
+//       CreateTexContextSeed 0x12EA2D0 -> COES2TexContext::create 0x1308AC0,
+//       whose signature carries TWO u8s -> Element::as 0x1300A70 stores the
+//       skip level at elem+30 -> Element::load_planar 0x1301030 ->
+//       Element::skip 0x13012A4 -> stream->Skip(bytes).
+//       Nothing in the .g1t supplies it; the file always holds the FULL mip
+//       chain and the caller decides how much to drop. Parse every level.
+//     DO NOT confuse it with minMipLevel. Element::as writes both:
+//       elem+29 = texHdrEx[8] & 0xF   <- from the FILE (minMipLevel)
+//       elem+30 = skipLevel            <- from the CALLER
+//     Element::skip VALIDATES first and refuses the load on a mismatch: type
+//     nibble vs elem[51]>>5, format byte vs elem[50], type 3 with non-zero
+//     depth exponent, and max(1, dim >> skip) against elem+44/46/48.
+//     Its byte sum clamps EACH AXIS independently with max(1, ..) - a 256x1
+//     texture keeps generating levels after the short axis bottoms out, so
+//     (w>>i)*(h>>i) without the clamp under-counts the tail. See G1T.md.
+//     [WIN]  ktgl::CDX11GraphicsDevice::ReadG1THeader
+//
+//   The attribute chain that TEX_EX_TYPE indexes
+//     [OES2] S_G1T_TEX_ATTR_HEADER::GetNextUsage           0x349D20
+//            next = this + dataWC + 1 on a 4 byte struct, so each record is a
+//            4 byte header followed by 4 * dataWC bytes of payload
+//     [OES2] COES2TexHandleUtil::GetTexAttrData            0x35151C
+//            loops while !ktgluse and then still matches the record it stopped
+//            on, so ktgluse marks the LAST attribute rather than meaning
+//            "already consumed". A walker that skips it drops the final entry.
+//     [HW] CCafeTexHandleUtil::GetTexAttrData            0x2821D84
+//            the same walk on big endian PowerPC, where the byte offsets are
+//            explicit rather than bitfields, so it is worth quoting:
+//              if (p[0] == usage) return p + 2;              // payload at +4
+//              while (!((BYTE*)p)[3])                        // while !ktgluse
+//                  p += 2 * ((BYTE*)p)[2] + 2;               // += 4 + 4*dataWC
+//            usage u16 at +0, dataWC byte at +2, ktgluse byte at +3, on a build
+//            with the opposite endianness. The layout is not bitfield order
+//            dependent.
+//
+//   WHO WRITES ktgluse. It is stamped by the loader, not authored in the file:
+//     [HW] CG1tHelperCafe::SetAttrHeader                  0x221A6BC
+//     [HW] CG1tHelperCafe::_CPR111__SetAttrHeader         0x221A748
+//            walks attrNum headers, writing ktgluse = 0 on every one except the
+//            last, which gets 1, and advancing by 4 * (dataWC + 1) each time
+//     [HW] CG1tHelperCafe::unGetAttrHeaderNum             0x221A12C
+//            = *(uint32*)texHeader & 0xF, which on big endian is the low nibble
+//            of byte 3, i.e. attrNum. So the count comes from the texture header
+//            and the loader relinks the chain into its runtime buffer.
+//   That reconciles the two readings of this field: the original note here that
+//   "the system writes a 1" was right about who writes it. What it means is
+//   "last in the chain", not "already consumed", and it is set during load, so
+//   a value sitting in a file is not necessarily meaningful until relinked.
+//
+//   The same routine exists in the later factored form, on the opposite
+//   endianness, doing exactly the same thing:
+//     [DFFOO64] ktgl::graphics::oes2::consume(S_G1T_TEX_ATTR_HEADER &,
+//                                             const S_G1T_TEX_HEADER &)   0xD3D930
+//         if (h.dword0 >> 28) {                     // attrNum
+//             while (...) { p->ktgluse = 0; p += 4 * p->dataWC + 4; }
+//             p->ktgluse = 1;                       // last
+//         }
+//   attrNum is the top 4 bits of dword 0 on little endian and the low nibble of
+//   byte 3 on big endian, which is the same field either way. Two builds of
+//   opposite byte order agree on all three points: the count comes from attrNum,
+//   the stride is 4 + 4 * dataWC, and ktgluse is stamped 0 on every entry but
+//   the last.
+//     [DF32] ktgl::graphics::oes2::consume                 0x7FC3B0
+//            The 32 bit build of the same game, byte for byte the same routine.
+//            Adds no new information, recorded only so the next person does not
+//            re-derive it. Note that its callers cannot be traced in that build:
+//            IDA attributes the PLT veneer to dozens of unrelated libc++
+//            functions, so where the S_G1T_TEX_HEADER it reads comes from is not
+//            answerable there.
+//     [OES2] CWaterShaderBase::GetNormalTextureCompressType 0x2FEBF4
+//     [OES2] CNormalMapAccessory::OnCommitChanges          0x32BF84
+//            the only two callers, both passing usage 3. Payload there is
+//            {u32 flags, u32 value} with flags bit 0 gating the value, that bit
+//            being KTGL_SHLIB_NORMALMAP_ATTR_PARAM_FLG_COMPRESS. The matching
+//            KTGL_SHLIB_ENVMAP_TEX_PARAM_FLG suggests {flags, value} with a
+//            per usage flag enum is the general shape.
+//
+//   KTGL_TEX_ATTR_USAGE, the engine's own enum for the usage field, i.e. for
+//   TEX_EX_TYPE below. IT GROWS BETWEEN BUILDS, which is the direct evidence for
+//   these being per system:
+//
+//     value  [OES2] (6 values)   [WIN] (18 values)        TEX_EX_TYPE below
+//       0    ENVMAP              ENVMAP                   (0 treated as NONE)
+//       1    IBL_SPECULAR        IBL_SPECULAR             CHANNEL_SWAP
+//       2    IBL_DIFFUSE         IBL_DIFFUSE              NO_ALPHA
+//       3    NORMALMAP           NORMALMAP                NORMAL_MAP        <-
+//       4    IBL_SHADOW          IBL_SHADOW               COLOR_TEST
+//       5    TLUT                TLUT                     N3DS_Wii_SWIZZLE
+//       6    (NUM, end)          CAFE_SWIZZLE             WiiU_SWIZZLE      <-
+//       7                        SH_IRRADIANCE_VOLUME     PS4_PLANE_ARRAY
+//       8                        ARRAY                    PSVITA_PS5_SWIZZLE
+//       9                        CUBICARRAY_SHADOW        ???
+//      10                        PLANARARRAY_SHADOW       ???
+//      11                        CUBICARRAY_ESM           ???
+//      12                        PLANARARRAY_ESM          ???
+//      13                        METALNESSMAP             ???
+//      14                        AMBIENT_SPECULAR         ???
+//      15                        SDF                      ???
+//      16                        TONEMAP                  ???
+//      17                        LIGHTMAP                 ???
+//      18                        (NUM, end)               ???
+//
+//   Two values line up exactly and are worth trusting: 3 NORMALMAP, which also
+//   agrees with the only two [OES2] callers, and 6 CAFE_SWIZZLE, since Cafe is
+//   Nintendo's codename for the Wii U. 5 TLUT is a GameCube and Wii palette
+//   concept, so N3DS_Wii there is at least the right family, and 8 ARRAY is
+//   plausibly the same thing as the PS4 plane array entry without the platform
+//   being part of the name.
+//
+//   The disagreements are real and unresolved. The hand mapping was made from
+//   observed behaviour and the engine names are declarations, so where they
+//   differ it may be that one build's usage 1 genuinely does a channel swap
+//   while another's means IBL specular, or that the behavioural reading was off.
+//   Neither list is being treated as authoritative here. What the [WIN] set does
+//   settle is 9..17, which were unknown in the table below.
+//
+//   Caveat: nothing in either binary is actually typed with this enum, so it is
+//   the declared set rather than proof of the field's type.
+//
+//     [OES2] KTGL_G1T_VERSION  0020 0030 0040 0050 0060, CURRENT = 0060
+//     [WIN]  KTGL_G1T_VERSION  0020 0030 0040 0050 0060 0061 0062 0063 0064,
+//            CURRENT = 0064
+//     Later builds go further. The corpus holds 0065, and the Nioh 3 demo adds
+//     0066, the streaming variant, which marks its textures with the new
+//     EX_SWIZZLE value ZLIB_COMPRESSED - see S_G1T_COMPED near the end of this
+//     template. Its loader [nioh3] sub_1406697D0 reads the 20 byte base header,
+//     and for version >= 0050 pulls 8 more bytes and requires the platform word
+//     to be 0, 10 or 14.
+//     [WIN]  S_G1T_TEX_HEADER_EX names the 12 bit field after minMipLevel
+//            "arrayLength", which confirms EX_ARRAY_COUNT below; [OES2] has it
+//            as padding, so that build predates array textures
+//     [both] KTGL_TEXTURE_TYPE, KTGL_GD_TEXFILTER, KTGL_GD_TEXADDRESS
+//
+//   [DFFOO] libDelta.so, Android ARM32, imagebase 0, declares no structures but
+//   carries a later, cleanly factored reader worth reading if this template ever
+//   needs reworking. It is free functions in a namespace rather than one big
+//   CreateTexContext, so each step is isolated:
+//     [DFFOO] ktgl::graphics::oes2::g1t_header                    0xB2DDF8
+//     [DFFOO] ktgl::graphics::oes2::skip_jump_table               0xB2E0A0
+//     [DFFOO] ktgl::graphics::oes2::g1t_image_bytes               0xB2DCB8
+//     [DFFOO] ktgl::graphics::oes2::adjust                        0xB2DF34, 0xB2E084
+//     [DFFOO] ktgl::graphics::oes2::consume                       0xB2E690
+//     [DFFOO] ktgl::graphics::oes2::load                          0xB2E580, 0xB2E638
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::g1t_attr    0xB32F04
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::as_planar   0xB32F54
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::as_cube     0xB331F4
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::as_volume   0xB33A70
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::load_planar 0xB34768
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::load_cube   0xB34AC0
+//     [DFFOO] ktgl::graphics::oes2::texture::Element::load_volume 0xB34DD8
+//   g1t_image_bytes is the size authority and confirms the alpha atlas note
+//   below from the engine side: it is w*h*d*bpp/8 summed over the mip chain with
+//   each dimension clamped to 1, and NOTHING else - no offset is ever consulted.
+//   Its bpp comes from ktgl::graphics::oes2::opengl::texture_format 0xB2F364,
+//   an 8 byte per format lookup at 0xCE15F0 + 440 with bpp at +6, which rejects
+//   any format above 0x70. Reading that table directly: ETC1 0x56 = 4 bpp,
+//   PVRT4 0x58 = 4, while ETC1RGBETC1A 0x6F = 8 and PVRT4RGBPVRT4A 0x70 = 8.
+//   So the engine already carries the doubled figure and only the packer's
+//   FILE_SIZE / offset arithmetic is wrong.
+//
+//   The as_/load_ split by texture type matches KTGL_TEXTURE_TYPE, and
+//   skip_jump_table names the texNum*4 offset table explicitly. g1t_attr itself
+//   is only a setter, storing the attribute pointer at +8 of the element, so the
+//   attribute walk is in its caller.
+//   That build declares no KTGL_TEX_ATTR_USAGE, so it adds nothing to the table
+//   question above.
+//
+//   [DFFOO64] a later DFFOO, Android arm64, has the same namespace with more in
+//   it. New since the arm32 one, and worth knowing because it dates the feature:
+//     [DFFOO64] texture::Element::as                    0xD44E08
+//     [DFFOO64] texture::Element::as_plane_array        0xD4629C   <- new
+//     [DFFOO64] texture::Element::load_plane_array      0xD465CC   <- new
+//     [DFFOO64] texture::Element::skip                  0xD4563C   <- new
+//     [DFFOO64] texture::Element::as_planar / as_cube / as_volume
+//                                                       0xD44FE8 / 0xD451C8 / 0xD46220
+//   So plane array, the PLANE_ARRAY entry of S_GT1_LOAD_TYPE below, arrived
+//   between those two builds. The arm32 one has only planar, cube and volume.
+//
+//   Element::as is the header decoder rather than a type dispatcher, and it
+//   spells out the packing of texture header dword 0 unambiguously:
+//     width  = 1 << ((dword0 >> 16) & 0xF)      tw
+//     height = 1 << ((dword0 >> 20) & 0xF)      th
+//     depth  = 1 << ((dword0 >> 24) & 0xF)      td
+//     fmt    = (dword0 >> 8) & 0xFF
+//     levels = (dword0 >> 4) & 0xF,  texType = dword0 & 0xF
+//   which matches the declared S_G1T_TEX_HEADER bitfields, and confirms that the
+//   three dimensions are stored as power of two exponents, not as sizes.
+//   It also reads the EX header at +4 for mipLodBias, the low nibble at +8 for
+//   minMipLevel and the byte at +11 for colorSpace, agreeing with the layout
+//   used below.
+//
+//   Its real signature, from the mangled name rather than the decompiler, is
+//     Element::as(oes2::opengl::context::Suite &,
+//                 const S_G1T_TEX_HEADER &, const S_G1T_TEX_HEADER_EX &,
+//                 unsigned char, unsigned char)
+//   and the eight byte scratch it decodes is not a mystery structure: it is the
+//   output of ktgl::graphics::oes2::adjust(S_G1T_TEX_HEADER &,
+//   const S_G1T_TEX_HEADER &, uint, uint) at 0xD3D1F4, so it is simply an
+//   adjusted copy of the texture header, dword 0 then dword 1. IDA mislabels
+//   that call as a std::bad_weak_ptr destructor because it resolves the PLT stub
+//   to the wrong import; the argument types in the mangled name give it away.
+//
+//   Dword 1 is then unpacked exactly as declared:
+//     bits  0..11  addrU, addrV, addrW      three 4 bit modes, copied as a group
+//     bits 12..19  magFilter, minFilter
+//     bits 20..23  mipFilter
+//   with one behaviour worth knowing: mipFilter is forced to zero when
+//   (dword0 & 0xE0) == 0, that is when levels is below 2. A single level texture
+//   gets no mip filtering regardless of what the file asks for.
+//
+//   Other helpers in that namespace, with real signatures:
+//     [DFFOO64] oes2::g1t_header(IInputStream &, S_G1T_HEADER &)          0xD3D074
+//     [DFFOO64] oes2::skip_jump_table(IInputStream &, const S_G1T_HEADER &) 0xD3D348
+//     [DFFOO64] oes2::adjust(S_G1T_TEX_HEADER &, uint, uint)              0xD3D208
+//     [DFFOO64] oes2::load(uint &, S_G1T_TEX_HEADER &, S_G1T_TEX_HEADER_EX &,
+//                          IInputStream &, const S_G1T_HEADER &)          0xD3D7C4
+//     [DFFOO64] Element::skip(IInputStream &, u8, const S_G1T_TEX_HEADER &,
+//                             const opengl::TextureFormat &, u16) const   0xD4563C
+//   The load overloads taking both headers plus the stream are the closest thing
+//   to a single readable definition of "one texture entry" in any build seen so
+//   far, and are the place to start if this template ever needs reworking.
+//
+//   Checked on samples: localBC == 28 + 4 * texNum on 10 of 10, which fixes both
+//   the header size and the fact that the attribute table and the offset table
+//   are two separate texNum*4 blocks. fileBC disagreed on exactly the two ETC1
+//   alpha atlas files, the known packer bug.
 //------------------------------------------------
+
 LittleEndian();
 
-// Texture enums for all Window and Open GL formats
-typedef enum <ushort> 
+typedef enum <ubyte>
 {
- // Windows DXGI ENUMS 
- // https://learn.microsoft.com/en-us/uwp/api/windows.graphics.directx.directxpixelformat
-    DXGI_FORMAT_R32G32B32A32_TYPELESS                   = 0x01,
-    DXGI_FORMAT_R32G32B32A32_FLOAT                      = 0x02,
-    DXGI_FORMAT_R16G16B16A16_TYPELESS                   = 0x09,
-    DXGI_FORMAT_R16G16B16A16_FLOAT                      = 0x0A,
-    DXGI_FORMAT_R16G16B16A16_UNORM                      = 0x0B,
-    DXGI_FORMAT_R32G32_TYPELESS                         = 0x0F,
-    DXGI_FORMAT_R32G32_FLOAT                            = 0x10,
-    DXGI_FORMAT_R32G8X24_TYPELESS                       = 0x13,
-    DXGI_FORMAT_D32_FLOAT_S8X24_UINT                    = 0x14,
-    DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS                = 0x15,
-    DXGI_FORMAT_R10G10B10A2_UNORM                       = 0x18,
-    DXGI_FORMAT_R11G11B10_FLOAT                         = 0x1A,
-    DXGI_FORMAT_R8G8B8A8_TYPELESS                       = 0x1B,
-    DXGI_FORMAT_R8G8B8A8_UNORM                          = 0x1C,
-    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB                     = 0x1D,
-    DXGI_FORMAT_R8G8B8A8_UINT                           = 0x1E,
-    DXGI_FORMAT_R16G16_TYPELESS                         = 0x21,
-    DXGI_FORMAT_R16G16_FLOAT                            = 0x22,
-    DXGI_FORMAT_R16G16_UNORM                            = 0x23,
-    DXGI_FORMAT_R32_TYPELESS                            = 0x27,
-    DXGI_FORMAT_D32_FLOAT                               = 0x28,
-    DXGI_FORMAT_R32_FLOAT                               = 0x29,
-    DXGI_FORMAT_R24G8_TYPELESS                          = 0x2C,
-    DXGI_FORMAT_D24_UNORM_S8_UINT                       = 0x2D,
-    DXGI_FORMAT_R24_UNORM_X8_TYPELESS                   = 0x2E,
-    DXGI_FORMAT_R8G8_TYPELESS                           = 0x30,
-    DXGI_FORMAT_R8G8_UNORM                              = 0x31,
-    DXGI_FORMAT_R8G8_UINT                               = 0x32,
-    DXGI_FORMAT_R16_TYPELESS                            = 0x35,
-    DXGI_FORMAT_R16_FLOAT                               = 0x36,
-    DXGI_FORMAT_D16_UNORM                               = 0x37,
-    DXGI_FORMAT_R16_UNORM                               = 0x38,
-    DXGI_FORMAT_R8_SINT                                 = 0x40,
-    DXGI_FORMAT_A8_UNORM                                = 0x41,
-    DXGI_FORMAT_BC1_TYPELESS                            = 0x46,
-    DXGI_FORMAT_BC1_UNORM                               = 0x47,
-    DXGI_FORMAT_BC1_UNORM_SRGB                          = 0x48,
-    DXGI_FORMAT_BC2_TYPELESS                            = 0x49,
-    DXGI_FORMAT_BC2_UNORM                               = 0x4A,
-    DXGI_FORMAT_BC2_UNORM_SRGB                          = 0x4B,
-    DXGI_FORMAT_BC3_TYPELESS                            = 0x4C,
-    DXGI_FORMAT_BC3_UNORM                               = 0x4D,
-    DXGI_FORMAT_BC3_UNORM_SRGB                          = 0x4E,
-    DXGI_FORMAT_BC4_TYPELESS                            = 0x4F,
-    DXGI_FORMAT_BC4_UNORM                               = 0x50,
-    DXGI_FORMAT_BC5_TYPELESS                            = 0x52,
-    DXGI_FORMAT_BC5_UNORM                               = 0x53,
-    DXGI_FORMAT_B5G6R5_UNORM                            = 0x55,
-    DXGI_FORMAT_B5G5R5A1_UNORM                          = 0x56,
-    DXGI_FORMAT_B8G8R8A8_UNORM                          = 0x57,
-    DXGI_FORMAT_B8G8R8X8_UNORM                          = 0x58,
-    DXGI_FORMAT_B8G8R8A8_TYPELESS                       = 0x5A,
-    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB                     = 0x5B,
-    DXGI_FORMAT_B8G8R8X8_TYPELESS                       = 0x5C,
-    DXGI_FORMAT_B8G8R8X8_UNORM_SRGB                     = 0x5D,
-    DXGI_FORMAT_BC6H_TYPELESS                           = 0x5E,
-    DXGI_FORMAT_BC6H_UF16                               = 0x5F,
-    DXGI_FORMAT_BC7_TYPELESS                            = 0x61,
-    DXGI_FORMAT_BC7_UNORM                               = 0x62,
-    DXGI_FORMAT_BC7_UNORM_SRGB                          = 0x63,
-    
- // Android / iOS GL ENUMS 
- // https://registry.khronos.org/OpenGL/api/GL/glext.h
-    GL_FALSE                                            = 0x0000,
-    GL_RGBA                                             = 0x1908,
-    GL_UNSIGNED_BYTE                                    = 0x1401,
-    GL_BGRA                                             = 0x80E1,
-    GL_R32F                                             = 0x822E,
-    GL_RED                                              = 0x1903,
-    GL_FLOAT                                            = 0x1406,
-    GL_RGBA16F                                          = 0x881A,
-    GL_HALF_FLOAT_OES                                   = 0x8D61,
-    GL_RGBA32F                                          = 0x8814,
-    GL_DEPTH_STENCIL                                    = 0x84F9,
-    GL_UNSIGNED_INT_24_8                                = 0x84FA,
-    GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                    = 0x83F1,
-    GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                    = 0x83F2,
-    GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                    = 0x83F3,
-    GL_ALPHA                                            = 0x1906,
-    GL_DEPTH_COMPONENT16                                = 0x81A5,
-    GL_DEPTH_COMPONENT                                  = 0x1902,
-    GL_UNSIGNED_SHORT                                   = 0x1403,
-    GL_R16                                              = 0x822A,
-    GL_R8                                               = 0x8229,
-    GL_RGB                                              = 0x1907,
-    GL_UNSIGNED_SHORT_5_6_5                             = 0x8363,
-    GL_UNSIGNED_SHORT_5_5_5_1                           = 0x8034,
-    GL_UNSIGNED_SHORT_4_4_4_4                           = 0x8033,
-    GL_R8I                                              = 0x8231,
-    GL_RED_INTEGER                                      = 0x8D94,
-    GL_BYTE                                             = 0x1400,
-    GL_R16I                                             = 0x8233,
-    GL_SHORT                                            = 0x1402,
-    GL_R32I                                             = 0x8235,
-    GL_INT                                              = 0x1404,
-    GL_RGB10_A2                                         = 0x8059,
-    GL_UNSIGNED_INT_2_10_10_10_REV_EXT                  = 0x8368,
-    GL_RGBA16                                           = 0x805B,
-    GL_UNSIGNED_INT                                     = 0x1405,
-    GL_DEPTH_COMPONENT32F                               = 0x8CAC,
-    GL_LUMINANCE                                        = 0x1909,
-    GL_LUMINANCE_ALPHA                                  = 0x190A,
-    GL_ETC1_RGB8_OES                                    = 0x8D64,
-    GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG                 = 0x8C03,
-    GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG                 = 0x8C02,
-    GL_RGBA8UI                                          = 0x8D7C,
-    GL_RGBA_INTEGER                                     = 0x8D99,
-    GL_RG8UI                                            = 0x8238,
-    GL_RG_INTEGER                                       = 0x8228,
-    GL_RG16F                                            = 0x822F,
-    GL_RG                                               = 0x8227,
-    GL_R16F                                             = 0x822D,
-    GL_R11F_G11F_B10F                                   = 0x8C3A,
-    GL_UNSIGNED_INT_10F_11F_11F_REV                     = 0x8C3B,
-    GL_DEPTH32F_STENCIL8                                = 0x8CAD,
-    GL_FLOAT_32_UNSIGNED_INT_24_8_REV                   = 0x8DAD,
-    GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG                  = 0x8C00,
-    GL_COMPRESSED_RGBA8_ETC2_EAC                        = 0x9278,
-    GL_RG8                                              = 0x822B,
-    GL_COMPRESSED_R11_EAC                               = 0x9270,
-    GL_COMPRESSED_RG11_EAC                              = 0x9272,
-    GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2         = 0x9276,
-    GL_COMPRESSED_RGBA_ASTC                             = 0x93AF,
-    GL_COMPRESSED_RGBA_ASTC_4x4                         = 0x93B0,
-    GL_COMPRESSED_RGBA_ASTC_5x4                         = 0x93B1,
-    GL_COMPRESSED_RGBA_ASTC_5x5                         = 0x93B2,
-    GL_COMPRESSED_RGBA_ASTC_6x5                         = 0x93B3,
-    GL_COMPRESSED_RGBA_ASTC_6x6                         = 0x93B4,
-    GL_COMPRESSED_RGBA_ASTC_8x5                         = 0x93B5,
-    GL_COMPRESSED_RGBA_ASTC_8x6                         = 0x93B6,
-    GL_COMPRESSED_RGBA_ASTC_8x8                         = 0x93B7,
-    GL_COMPRESSED_RGBA_ASTC_10x5                        = 0x93B8,
-    GL_COMPRESSED_RGBA_ASTC_10x6                        = 0x93B9,
-    GL_COMPRESSED_RGBA_ASTC_10x8                        = 0x93BA,
-    GL_COMPRESSED_RGBA_ASTC_10x10                       = 0x93BB,
-    GL_COMPRESSED_RGBA_ASTC_12x10                       = 0x93BC,
-    GL_COMPRESSED_RGBA_ASTC_12x12                       = 0x93BD,
-    
- // Nintendo Switch ENUM for BNTX format 
- // https://code.botw.link/uking/uking/lib/NintendoSDK/include/nn/gfx/gfx_Enum.h.html#nn::gfx::ChannelFormat
-    BNTX_R5G6B5_UNORM                                   =  0x0701,
-    BNTX_R5G5B5A1_UNORM                                 =  0x0501,
-    BNTX_R4G4B4A4_UNORM                                 =  0x0301,
-    
- // Nintendo PICA 3DS 
- // https://github.com/xdanieldzd/Tharsis/blob/master/Tharsis/Images/Pica.cs
-    PICA_RGBA                                           = 0x6752,
-    PICA_RGB                                            = 0x6754,
-    PICA_A                                              = 0x6756,
-    PICA_LUMINANCE                                      = 0x6757,
-    PICA_LUMINANCE_A                                    = 0x6758,
-    PICA_R16                                            = 0x6759,
-    PICA_ETC1_RGB8                                      = 0x675A,
-    PICA_ETC1_RGB8A4                                    = 0x675B,
-    PICA_UNORM_44_BYTE                                  = 0x6760,
-    PICA_UNORM_4_HALF_BYTE                              = 0x6761,
-    
- // Sony PS3 SEC GXM format (faked to not conflict) 
- // https://github.com/vitasdk/vita-headers/blob/master/include/psp2/gxm.h
-    SCE_GXM_TEXTURE_BASE_FORMAT_U2F10F10F10             = 0x549A,
-    SCE_GXM_TEXTURE_BASE_FORMAT_U4U4U4U4                = 0x5402,
-    SCE_GXM_TEXTURE_BASE_FORMAT_U8U8                    = 0x5407,
-    SCE_GXM_TEXTURE_BASE_FORMAT_P4                      = 0x5494,
-    SCE_GXM_TEXTURE_BASE_FORMAT_P8                      = 0x5495,
-    SCE_GXM_TEXTURE_BASE_FORMAT_PVRTII2BPP              = 0x5482,
-    SCE_GXM_TEXTURE_BASE_FORMAT_PVRTII4BPP              = 0x5483,
-    SCE_GXM_TEXTURE_SWIZZLE4_ABGR                       = 0x5500,
-    SCE_GXM_TEXTURE_SWIZZLE4_ARGB                       = 0x5501,
-    SCE_GXM_TEXTURE_SWIZZLE2_GRRR                       = 0x5702,
-    
- // PS4 SEC format (faked to not conflict) 
- // https://github.com/Inori/GPCS4/blob/master/GPCS4/Graphics/Gnm/GnmConstant.h
-    SEC_G8R8                                            = 0x5587,
-    SEC_R8                                              = 0x5585,
-    SEC_UNORM                                           = 0x5580,
-    SEC_R16                                             = 0x5584,
-    
- // Wii GX format (faked to not conflict)  
- // https://wiki.tockdom.com/wiki/Image_Formats
-    GX_TF_I4                                            = 0x5A00,
-    GX_TF_RGB5A3                                        = 0x5A05,
-    GX_TF_CI14                                          = 0x5A0A
-} TEX_ENUMS;
+  KTGL_PIXEL_FORMAT_RGBA8             = 0x00,
+  KTGL_PIXEL_FORMAT_BGRA8             = 0x01,
+  KTGL_PIXEL_FORMAT_R32F              = 0x02,
+  KTGL_PIXEL_FORMAT_RGBA16F           = 0x03,
+  KTGL_PIXEL_FORMAT_RGBA32F           = 0x04,
+  KTGL_PIXEL_FORMAT_Z24S8             = 0x05,
+  KTGL_PIXEL_FORMAT_DXT1              = 0x06,
+  KTGL_PIXEL_FORMAT_DXT3              = 0x07,
+  KTGL_PIXEL_FORMAT_DXT5              = 0x08,
+  KTGL_PIXEL_FORMAT_TILE_RGBA8        = 0x09,
+  KTGL_PIXEL_FORMAT_TILE_BGRA8        = 0x0A,
+  KTGL_PIXEL_FORMAT_TILE_R32F         = 0x0B,
+  KTGL_PIXEL_FORMAT_TILE_RGBA16F      = 0x0C,
+  KTGL_PIXEL_FORMAT_TILE_RGBA32F      = 0x0D,
+  KTGL_PIXEL_FORMAT_RGB10FA2F         = 0x0E,
+  KTGL_PIXEL_FORMAT_A8                = 0x0F,
+  KTGL_PIXEL_FORMAT_TILE_DXT1         = 0x10,
+  KTGL_PIXEL_FORMAT_TILE_DXT3         = 0x11,
+  KTGL_PIXEL_FORMAT_TILE_DXT5         = 0x12,
+  KTGL_PIXEL_FORMAT_TILE_Z24S8        = 0x13,
+  KTGL_PIXEL_FORMAT_Z16               = 0x14,
+  KTGL_PIXEL_FORMAT_TILE_Z16          = 0x15,
+  KTGL_PIXEL_FORMAT_R16               = 0x16,
+  KTGL_PIXEL_FORMAT_TILE_R16          = 0x17,
+  KTGL_PIXEL_FORMAT_TILE_A8           = 0x18,
+  KTGL_PIXEL_FORMAT_B5G6R5            = 0x19,
+  KTGL_PIXEL_FORMAT_B5G5R5A1          = 0x1A,
+  KTGL_PIXEL_FORMAT_B4G4R4A4          = 0x1B,
+  KTGL_PIXEL_FORMAT_TILE_B5G6R5       = 0x1C,
+  KTGL_PIXEL_FORMAT_TILE_B5G5R5A1     = 0x1D,
+  KTGL_PIXEL_FORMAT_TILE_B4G4R4A4     = 0x1E,
+  KTGL_PIXEL_FORMAT_Z24FS8            = 0x1F,
+  KTGL_PIXEL_FORMAT_TILE_Z24FS8       = 0x20,
+  KTGL_PIXEL_FORMAT_BGRX8             = 0x21,
+  KTGL_PIXEL_FORMAT_TILE_BGRX8        = 0x22,
+  KTGL_PIXEL_FORMAT_GR16              = 0x23,
+  KTGL_PIXEL_FORMAT_TILE_GR16         = 0x24,
+  KTGL_PIXEL_FORMAT_TILE_B5G5R5A3     = 0x25,
+  KTGL_PIXEL_FORMAT_TILE_BG8          = 0x26,
+  KTGL_PIXEL_FORMAT_TILE_RA8          = 0x27,
+  KTGL_PIXEL_FORMAT_TILE_B8           = 0x28,
+  KTGL_PIXEL_FORMAT_TILE_G8           = 0x29,
+  KTGL_PIXEL_FORMAT_TILE_R8           = 0x2A,
+  KTGL_PIXEL_FORMAT_TILE_L4           = 0x2B,
+  KTGL_PIXEL_FORMAT_TILE_L8           = 0x2C,
+  KTGL_PIXEL_FORMAT_TILE_LA4          = 0x2D,
+  KTGL_PIXEL_FORMAT_TILE_LA8          = 0x2E,
+  KTGL_PIXEL_FORMAT_TILE_Z4           = 0x2F,
+  KTGL_PIXEL_FORMAT_TILE_Z8           = 0x30,
+  KTGL_PIXEL_FORMAT_TILE_INDEX4       = 0x31,
+  KTGL_PIXEL_FORMAT_TILE_INDEX8       = 0x32,
+  KTGL_PIXEL_FORMAT_TILE_INDEX14X2    = 0x33,
+  KTGL_PIXEL_FORMAT_R5G6B5            = 0x34,
+  KTGL_PIXEL_FORMAT_R5G5B5A1          = 0x35,
+  KTGL_PIXEL_FORMAT_R4G4B4A4          = 0x36,
+  KTGL_PIXEL_FORMAT_INDEX4            = 0x37,
+  KTGL_PIXEL_FORMAT_INDEX8            = 0x38,
+  KTGL_PIXEL_FORMAT_INDEX16           = 0x39,
+  KTGL_PIXEL_FORMAT_INDEX32           = 0x3A,
+  KTGL_PIXEL_FORMAT_TILE_R5G6B5       = 0x3B,
+  KTGL_PIXEL_FORMAT_TILE_R5G5B5A1     = 0x3C,
+  KTGL_PIXEL_FORMAT_TILE_R4G4B4A4     = 0x3D,
+  KTGL_PIXEL_FORMAT_TILE_INDEX16      = 0x3E,
+  KTGL_PIXEL_FORMAT_TILE_INDEX32      = 0x3F,
+  KTGL_PIXEL_FORMAT_R10G10B10A2       = 0x40,
+  KTGL_PIXEL_FORMAT_R16G16B16A16      = 0x41,
+  KTGL_PIXEL_FORMAT_TILE_R10G10B10A2  = 0x42,
+  KTGL_PIXEL_FORMAT_TILE_R16G16B16A16 = 0x43,
+  KTGL_PIXEL_FORMAT_TILE_A4           = 0x44,
+  KTGL_PIXEL_FORMAT_TILE_RGB8         = 0x45,
+  KTGL_PIXEL_FORMAT_TILE_RG8          = 0x46,
+  KTGL_PIXEL_FORMAT_TILE_ETC1         = 0x47,
+  KTGL_PIXEL_FORMAT_TILE_ETC1A4       = 0x48,
+  KTGL_PIXEL_FORMAT_RGB8              = 0x49,
+  KTGL_PIXEL_FORMAT_Z24               = 0x4A,
+  KTGL_PIXEL_FORMAT_TILE_Z24          = 0x4B,
+  KTGL_PIXEL_FORMAT_GR32F             = 0x4C,
+  KTGL_PIXEL_FORMAT_TILE_GR32F        = 0x4D,
+  KTGL_PIXEL_FORMAT_Z32F              = 0x4E,
+  KTGL_PIXEL_FORMAT_TILE_Z32F         = 0x4F,
+  KTGL_PIXEL_FORMAT_PVRTII2           = 0x50,
+  KTGL_PIXEL_FORMAT_TILE_PVRTII2      = 0x51,
+  KTGL_PIXEL_FORMAT_PVRTII4           = 0x52,
+  KTGL_PIXEL_FORMAT_TILE_PVRTII4      = 0x53,
+  KTGL_PIXEL_FORMAT_L8                = 0x54,
+  KTGL_PIXEL_FORMAT_LA8               = 0x55,
+  KTGL_PIXEL_FORMAT_ETC1              = 0x56,
+  KTGL_PIXEL_FORMAT_PVRT2             = 0x57,
+  KTGL_PIXEL_FORMAT_PVRT4             = 0x58,
+  KTGL_PIXEL_FORMAT_BC1               = 0x59,
+  KTGL_PIXEL_FORMAT_BC2               = 0x5A,
+  KTGL_PIXEL_FORMAT_BC3               = 0x5B,
+  KTGL_PIXEL_FORMAT_BC4               = 0x5C,
+  KTGL_PIXEL_FORMAT_BC5               = 0x5D,
+  KTGL_PIXEL_FORMAT_BC6               = 0x5E,
+  KTGL_PIXEL_FORMAT_BC7               = 0x5F,
+  KTGL_PIXEL_FORMAT_TILE_BC1          = 0x60,
+  KTGL_PIXEL_FORMAT_TILE_BC2          = 0x61,
+  KTGL_PIXEL_FORMAT_TILE_BC3          = 0x62,
+  KTGL_PIXEL_FORMAT_TILE_BC4          = 0x63,
+  KTGL_PIXEL_FORMAT_TILE_BC5          = 0x64,
+  KTGL_PIXEL_FORMAT_TILE_BC6          = 0x65,
+  KTGL_PIXEL_FORMAT_TILE_BC7          = 0x66,
+  KTGL_PIXEL_FORMAT_RGBA8U            = 0x67,
+  KTGL_PIXEL_FORMAT_RG8U              = 0x68,
+  KTGL_PIXEL_FORMAT_RG16F             = 0x69,
+  KTGL_PIXEL_FORMAT_R16F              = 0x6A,
+  KTGL_PIXEL_FORMAT_R11G11B10F        = 0x6B,
+  KTGL_PIXEL_FORMAT_Z32FS8            = 0x6C,
+  KTGL_PIXEL_FORMAT_TILE_Z32FS8       = 0x6D,
+  KTGL_PIXEL_FORMAT_Z16S8             = 0x6E,
+  KTGL_PIXEL_FORMAT_ETC1RGBETC1A      = 0x6F,
+  KTGL_PIXEL_FORMAT_PVRT4RGBPVRT4A    = 0x70,
+  KTGL_PIXEL_FORMAT_ETC2RGBA8         = 0x71,
+  KTGL_PIXEL_FORMAT_R8                = 0x72,
+  KTGL_PIXEL_FORMAT_RG8               = 0x73,
+  KTGL_PIXEL_FORMAT_TILE_RGBA8U       = 0x74,
+  KTGL_PIXEL_FORMAT_TILE_RG8U         = 0x75,
+  KTGL_PIXEL_FORMAT_TILE_RG16F        = 0x76,
+  KTGL_PIXEL_FORMAT_TILE_R16F         = 0x77,
+  KTGL_PIXEL_FORMAT_TILE_R11G11B10F   = 0x78,
+  KTGL_PIXEL_FORMAT_TILE_Z16S8        = 0x79,
+  KTGL_PIXEL_FORMAT_EACR11            = 0x7A,
+  KTGL_PIXEL_FORMAT_EACRG11           = 0x7B,
+  KTGL_PIXEL_FORMAT_ETC2RGB8A1        = 0x7C,
+  KTGL_PIXEL_FORMAT_ASTC              = 0x7D,
+  KTGL_PIXEL_FORMAT_ASTC_TILE         = 0x7E,
+  KTGL_PIXEL_FORMAT_FORCE_INT32       = 0x7FFFFFFF,
+} KTGL_PIXEL_FORMAT;
 
-local TEX_ENUMS TEX_FORMS[640]<hidden=true> = 
+// Raw graphics API enum values stored in the TEX_FORMS / ASTC_SUB tables below
+typedef ushort TEX_ENUMS;
+
+local ushort TEX_FORMS[640]<hidden=true> =
 {
  //                                   v - I added this to the table (not found in client)                                     
  // Internal|Color  |Data   |Bits per|Min byte
@@ -337,8 +563,8 @@ local TEX_ENUMS TEX_FORMS[640]<hidden=true> =
     0x13,   0x15,   0x14,   0x40,    0x08, // 0x6D DXGI_FORMAT_R32G8X24_TYPELESS DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS DXGI_FORMAT_D32_FLOAT_S8X24_UINT 
     0x5584, 0x5584, 0x5580, 0x10,    0x02, // 0x6E SEC_R16 SEC_R16 SEC_UNORM
     0x8D64, 0x1907, 0x1401, 0x04,    0x08, // 0x6F GL_ETC1_RGB8_OES GL_RGB GL_UNSIGNED_BYTE (alpha under, bpp adjusted)
-    0x8C00, 0x1907, 0x1401, 0x04,    0x08, // 0x70 GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG GL_RGB GL_UNSIGNED_BYTE
-    0x9278, 0x1908, 0x1401, 0x04,    0x08, // 0x71 GL_COMPRESSED_RGBA8_ETC2_EAC GL_RGBA GL_UNSIGNED_BYTE (extra non-alpha under, bpp adjusted)
+    0x8C00, 0x1907, 0x1401, 0x04,    0x08, // 0x70 GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG GL_RGB GL_UNSIGNED_BYTE (alpha under, bpp adjusted)
+    0x9278, 0x1908, 0x1401, 0x04,    0x10, // 0x71 GL_COMPRESSED_RGBA8_ETC2_EAC GL_RGBA GL_UNSIGNED_BYTE 
     0x8229, 0x1903, 0x1401, 0x08,    0x01, // 0x72 GL_R8 GL_RED GL_UNSIGNED_BYTE
     0x822B, 0x8227, 0x1401, 0x10,    0x02, // 0x73 GL_RG8 GL_RG GL_UNSIGNED_BYTE
     0x1B,   0x1E,   0x1E,   0x20,    0x04, // 0x74 DXGI_FORMAT_R8G8B8A8_TYPELESS DXGI_FORMAT_R8G8B8A8_UINT DXGI_FORMAT_R8G8B8A8_UINT
@@ -557,49 +783,54 @@ string ASTC_STR(eASTC_FORMAT FORMAT)
 
 typedef enum<uint32> 
 {
-    PS2      = 0x00, // <- didn't find a game with g1t files (aka x32)
-    PS3      = 0x01, // Special Tiled Z Morton Swizzling
-    X360     = 0x02, // Extra Special Tiling Swizzling
-    NWii     = 0x03, // 
-    NDS      = 0x04, // <- didn't find a game with g1t files
-    N3DS     = 0x05, // 
-    PSVita   = 0x06, // 
-    Android  = 0x07, // 
-    iOS      = 0x08, // 
-    NWiiU    = 0x09, // Big Endian
-    WinMac   = 0x0A, // They share the same enum (aka x64)
-    PS4      = 0x0B, // Special Z Morton Swizzling (aka orbis)
-  //XOne     = 0x0C, // <- Need rom to confrim (aka X3)
-  //???      = 0x0D, //
-    WinDX12  = 0x0E, // 
-  //???      = 0x0F, //
-    NSwitch  = 0x10, // 
-  //???      = 0x11, //
-  //???      = 0x12, //
-    PS5      = 0x13, // (aka perspero)
-  //XBXS     = 0x14, // (aka X4)
-} PLATFORM;
+    KTGL_PLATFORM_DX9   = 0x00, // DX9 <- didn't find a game with g1t files (aka x32 or DX9)
+    KTGL_PLATFORM_PS3   = 0x01, // Special Tiled Z Morton Swizzling
+    KTGL_PLATFORM_XB2   = 0x02, // X360 Extra Special Tiling Swizzling
+    KTGL_PLATFORM_RVL   = 0x03, // NWii
+    KTGL_PLATFORM_PSP   = 0x04, // <- didn't find a game with g1t files
+    KTGL_PLATFORM_CTR   = 0x05, // aka 3DS
+    KTGL_PLATFORM_NGP   = 0x06, // AKA Vita
+    KTGL_PLATFORM_AND   = 0x07, // 
+    KTGL_PLATFORM_IOS   = 0x08, // 
+    KTGL_PLATFORM_CAFE  = 0x09, // Wii U Big Endian
+    KTGL_PLATFORM_DX11  = 0x0A, // Windows / Mac share the same enum (aka x64)
+    KTGL_PLATFORM_PS4   = 0x0B, // Special Z Morton Swizzling (aka orbis)
+    KTGL_PLATFORM_XB3   = 0x0C, // XOne <- Need rom to confrim (aka X3)
+    KTGL_PLATFORM_NACL  = 0x0D, // Google Native Client (chrome os)
+    KTGL_PLATFORM_DX12  = 0x0E, // 
+    KTGL_PLATFORM_WEBGL = 0x0F, //
+    KTGL_PLATFORM_NX    = 0x10, // switch
+  //KTGL_PLATFORM_11    = 0x11, // Switch Lite? Oculus?
+  //KTGL_PLATFORM_12    = 0x12, // Xbox x? aka Chuckwalla
+    KTGL_PLATFORM_PS5   = 0x13, // (aka perspero)
+  //KTGL_PLATFORM_14    = 0x14, // (aka XB4) Xbox x? aka Chuckwalla
+} KTGL_PLATFORM;
 
-string SYSTEM_STR(PLATFORM SYSTEM) 
+string SYSTEM_STR(KTGL_PLATFORM SYSTEM) 
 {
     switch(SYSTEM)
     {
-    case PS2:     return "PS2";    
-    case PS3:     return "PS3";
-    case X360:    return "Xbox 360";
-    case NWii:    return "Nintendo Wii";
-    case NDS:     return "Nintendo DS";    
-    case N3DS:    return "Nintendo 3DS";   
-    case PSVita:  return "Playstation Vita";  
-    case Android: return "Android"; 
-    case iOS:     return "iOS";
-    case NWiiU:   return "Nintendo Wii U";
-    case WinMac:  return "Windows";  
-    case PS4:     return "PS4";          
-    case WinDX12: return "Windows Direct-X 12";       
-    case NSwitch: return "Nintendo Switch";      
-    case PS5:     return "PS5";
-    default:      return Str("Unknown System 0x%02X", SYSTEM);
+    case KTGL_PLATFORM_DX9:   return "PS2";
+    case KTGL_PLATFORM_PS3:   return "PS3";
+    case KTGL_PLATFORM_XB2:   return "Xbox 360";
+    case KTGL_PLATFORM_RVL:   return "Nintendo Wii";
+    case KTGL_PLATFORM_PSP:   return "PSP";    
+    case KTGL_PLATFORM_CTR:   return "Nintendo 3DS";   
+    case KTGL_PLATFORM_NGP:   return "Playstation Vita";  
+    case KTGL_PLATFORM_AND:   return "Android"; 
+    case KTGL_PLATFORM_IOS:   return "iOS";
+    case KTGL_PLATFORM_CAFE:  return "Nintendo Wii U";
+    case KTGL_PLATFORM_DX11:  return "Windows";  
+    case KTGL_PLATFORM_PS4:   return "PS4";    
+    case KTGL_PLATFORM_XB3:   return "Xbox One";
+    case KTGL_PLATFORM_NACL:  return "Chrome OS"; 
+    case KTGL_PLATFORM_DX12:  return "Windows Direct-X 12";       
+    case KTGL_PLATFORM_WEBGL: return "WebGL Browser";
+    case KTGL_PLATFORM_NX:    return "Nintendo Switch";      
+  //case KTGL_PLATFORM_11:    return "";
+  //case KTGL_PLATFORM_12:    return "";
+    case KTGL_PLATFORM_PS5:   return "PS5";
+    default:                    return Str("Unknown System 0x%02X", SYSTEM);
     }
 };
 
@@ -608,44 +839,57 @@ typedef enum<ushort>
  // These are sometime directly hardcoded to the client.
  // Meaning that they don't appear in the file, 
  // but are hardcodes on every g1t the game reads
-    CHANNEL_SWAP        = 0x01, // xbox 360 can mean dont swizzle in others
-    NO_ALPHA            = 0x02, // xbox 360
-    NORMAL_MAP          = 0x03, // xbox 360
-    COLOR_TEST          = 0x04, // n switch test file
-    N3DS_Wii_SWIZZLE    = 0x05,
-    WiiU_SWIZZLE        = 0x06,
-    PS4_PLANE_ARRAY     = 0x07,
-    PSVITA_PS5_SWIZZLE  = 0x08,
-  //???                 = 0x09,
-  //???                 = 0x0A,
-  //???                 = 0x0B,
-  //???                 = 0x0C,
-  //???                 = 0x0D,
-  //???                 = 0x0E,
-  //???                 = 0x0F,
-  //???                 = 0x10,
-  //???                 = 0x11,
-  //???                 = 0x12,
-  //???                 = 0x13,
-  //???                 = 0x14,
-    ASTC_TYPE           = 0x15
+    KTGL_TEX_ATTR_USAGE_ENVMAP               = 0x00,
+    KTGL_TEX_ATTR_USAGE_IBL_SPECULAR         = 0x01, // CHANNEL_SWAP xbox 360 can mean dont swizzle in others
+    KTGL_TEX_ATTR_USAGE_IBL_DIFFUSE          = 0x02, // NO_ALPHA xbox 360
+    KTGL_TEX_ATTR_USAGE_NORMALMAP            = 0x03, // NORMAL_MAP xbox 360
+    KTGL_TEX_ATTR_USAGE_IBL_SHADOW           = 0x04, // COLOR_TEST switch test file
+    KTGL_TEX_ATTR_USAGE_TLUT                 = 0x05, // may be wrong here or outdated
+    KTGL_TEX_ATTR_USAGE_CAFE_SWIZZLE         = 0x06, 
+    KTGL_TEX_ATTR_USAGE_SH_IRRADIANCE_VOLUME = 0x07,
+    KTGL_TEX_ATTR_USAGE_ARRAY                = 0x08,
+    KTGL_TEX_ATTR_USAGE_CUBICARRAY_SHADOW    = 0x09, // never found
+    KTGL_TEX_ATTR_USAGE_PLANARARRAY_SHADOW   = 0x0A, // never found
+    KTGL_TEX_ATTR_USAGE_CUBICARRAY_ESM       = 0x0B, // never found
+    KTGL_TEX_ATTR_USAGE_PLANARARRAY_ESM      = 0x0C, // never found
+    KTGL_TEX_ATTR_USAGE_METALNESSMAP         = 0x0D, // never found
+    KTGL_TEX_ATTR_USAGE_AMBIENT_SPECULAR     = 0x0E, // never found
+    KTGL_TEX_ATTR_USAGE_SDF                  = 0x0F, // never found
+    KTGL_TEX_ATTR_USAGE_TONEMAP              = 0x10, // never found
+    KTGL_TEX_ATTR_USAGE_LIGHTMAP             = 0x11, // never found
+  //???                                      = 0x12,
+  //???                                      = 0x13,
+  //???                                      = 0x14,
+    KTGL_TEX_ATTR_USAGE_ASTC                 = 0x15
 } TEX_EX_TYPE;
 
 string TEX_EX_STR(TEX_EX_TYPE num) 
 {
     switch(num)
     {
-    case 0:                  return "NONE";
-    case CHANNEL_SWAP:       return "CHANNEL_SWAP";
-    case NO_ALPHA:           return "NO_ALPHA";
-    case NORMAL_MAP:         return "NORMAL_MAP";
-    case COLOR_TEST:         return "COLOR_TEST";
-    case N3DS_Wii_SWIZZLE:   return "N3DS_Wii_SWIZZLE";
-    case WiiU_SWIZZLE:       return "WiiU_SWIZZLE";
-    case PS4_PLANE_ARRAY:    return "PS4_PLANE_ARRAY";
-    case PSVITA_PS5_SWIZZLE: return "PSVITA_PS5_SWIZZLE";
-    case ASTC_TYPE:          return "ASTC_TYPE";
-    default:                 return "";
+    case KTGL_TEX_ATTR_USAGE_ENVMAP:               return "NONE";
+    case KTGL_TEX_ATTR_USAGE_IBL_SPECULAR:         return "CHANNEL_SWAP";
+    case KTGL_TEX_ATTR_USAGE_IBL_DIFFUSE:          return "NO_ALPHA";
+    case KTGL_TEX_ATTR_USAGE_NORMALMAP:            return "NORMAL_MAP";
+    case KTGL_TEX_ATTR_USAGE_IBL_SHADOW:           return "COLOR_TEST";
+    case KTGL_TEX_ATTR_USAGE_TLUT:                 return "N3DS_Wii_SWIZZLE";
+    case KTGL_TEX_ATTR_USAGE_CAFE_SWIZZLE:         return "WiiU_SWIZZLE";
+    case KTGL_TEX_ATTR_USAGE_SH_IRRADIANCE_VOLUME: return "PS4_PLANE_ARRAY";
+    case KTGL_TEX_ATTR_USAGE_ARRAY:                return "PSVITA_PS5_SWIZZLE";
+    case KTGL_TEX_ATTR_USAGE_CUBICARRAY_SHADOW:    return "SHADOW_CUBICARRAY";
+    case KTGL_TEX_ATTR_USAGE_PLANARARRAY_SHADOW:   return "SHADOW_PLANARARRAY";
+    case KTGL_TEX_ATTR_USAGE_CUBICARRAY_ESM:       return "ESM_CUBICARRAY";
+    case KTGL_TEX_ATTR_USAGE_PLANARARRAY_ESM:      return "ESM_PLANARARRAY";
+    case KTGL_TEX_ATTR_USAGE_METALNESSMAP:         return "METALNESSMAP";
+    case KTGL_TEX_ATTR_USAGE_AMBIENT_SPECULAR:     return "AMBIENT_SPECULAR";
+    case KTGL_TEX_ATTR_USAGE_SDF:                  return "SDF";
+    case KTGL_TEX_ATTR_USAGE_TONEMAP:              return "TONEMAP";
+    case KTGL_TEX_ATTR_USAGE_LIGHTMAP:             return "LIGHTMAP";
+    // 0x12
+    // 0x13
+    // 0x14
+    case KTGL_TEX_ATTR_USAGE_ASTC:                 return "ASTC_TYPE";
+    default:                                       return "";
     }
 };
 
@@ -790,7 +1034,7 @@ uint32 TextureSizeWithMips(
             blocksY = (h + blockHeight - 1) / blockHeight; if (blocksY == 0) blocksY = 1;
         
             mipSize = blocksX * blocksY * blockByteSize;
-            
+            Printf("mipSize %d, blockByteSize %d\n", mipSize, blockByteSize);
          // Sanity check for smallest block size
             if(mipSize < blockByteSize)
             {
@@ -803,7 +1047,7 @@ uint32 TextureSizeWithMips(
             }
             
             mipSize = mipSize * d;
-            
+            Printf("mipSize %d\n",mipSize);
             totalSize += mipSize;
         }
         else
@@ -1092,7 +1336,7 @@ uint32 PS5TextureSizeWithMips(
     return totalSize * planeCount * faceCount;
 };
 
-typedef struct 
+typedef struct
 {
     local uint start<hidden=true> = FTell();
     TEX_EX_TYPE TYPE<fgcolor=cAqua>;
@@ -1102,17 +1346,17 @@ typedef struct
     local uint64 ARRAY_DEPTH = 1;
     local string str<hidden=true>;
  // 21 ASTC table
-    if (TYPE == ASTC_TYPE && COUNT == 1) 
+    if (TYPE == KTGL_TEX_ATTR_USAGE_ASTC && COUNT == 1) 
     {   
         eASTC_FORMAT KT_ASTC_FORMAT<fgcolor=cAqua>;
         str = ASTC_STR(KT_ASTC_FORMAT);
     } 
-    else if ((TYPE == WiiU_SWIZZLE || TYPE == N3DS_Wii_SWIZZLE) && COUNT == 1) 
+    else if ((TYPE == KTGL_TEX_ATTR_USAGE_CAFE_SWIZZLE || TYPE == KTGL_TEX_ATTR_USAGE_TLUT) && COUNT == 1) 
     { 
         uint Wii_SWIZZLE<fgcolor=cAqua>;
-        str = Str("WiiU_SWIZZLE %d", Wii_SWIZZLE);
+        str = Str("KTGL_TEX_ATTR_USAGE_CAFE_SWIZZLE %d", Wii_SWIZZLE);
     }
-    else if(TYPE == PS4_PLANE_ARRAY && COUNT == 32)
+    else if(TYPE == KTGL_TEX_ATTR_USAGE_SH_IRRADIANCE_VOLUME && COUNT == 32)
     {   
      // unsure what this is, Vector bases?
         uint ID1;
@@ -1132,7 +1376,7 @@ typedef struct
         {
             ARRAY_DEPTH = 2;
         }
-        str = Str("PS4_PLANE_ARRAY %d", ID1);
+        str = Str("KTGL_TEX_ATTR_USAGE_SH_IRRADIANCE_VOLUME %d", ID1);
     } 
     else if(COUNT != 0)
     {
@@ -1182,28 +1426,53 @@ struct ktgl
             (((VERSION >> 8 ) & 0xFF) - 0x30) * 10+
               (VERSION        & 0xFF) - 0x30;        
         } MAGICS<bgcolor=cDkRed>;
-        uint32 FILE_SIZE<bgcolor=cBlack>;
-        uint32 TEX_OFFSET<comment="Offset table address", bgcolor=cLtRed>;
-        uint32 TEX_COUNT<comment="Number of textures", bgcolor=cLtGreen, fgcolor=cWhite>;
+     // AKA fileBC. Not reliable on alpha atlas files: the authoring tool sizes
+     // 0x6F/0x70/0x71 textures at their nominal height instead of the doubled
+     // height the atlas actually occupies, so FILE_SIZE comes out at roughly half
+     // the real file. Seen on ETC1 alpha atlas builds (CT_0278, WT_1698, platform
+     // 7). Do not treat a FILE_SIZE mismatch on those as corruption, and do not
+     // use it to bound the texture data.
+        uint32 FILE_SIZE<bgcolor=cBlack, comment="AKA fileBC. Wrong on alpha atlas files, see note above">;
+        uint32 TEX_OFFSET<comment="AKA localBC. Offset table address == HEADER_SIZE + 4*TEX_COUNT", bgcolor=cLtRed>;
+        uint32 TEX_COUNT<comment="AKA texNum. Number of textures", bgcolor=cLtGreen, fgcolor=cWhite>;
         local int HEADER_SIZE = 20;
+     // ktgl::CDX11GraphicsDevice::ReadG1THeader reads S_G1T_HEADER as:
+     //   +0 resHeader{magic,version}  +8 fileBC  +12 localBC  +16 texNum
+     //   +20 platform  +24 attrBC       <- only for version >= 0050
+     // It reads 20 bytes, and only for version >= 0050 does it read the further 8.
+     // For older versions it forces attrBC = 0 and never touches platform, then
+     // expects localBC == 20 (28 for >= 0050), skipping forward when it differs.
+     // So per the engine there is no platform dword on disk below 0050. The branches
+     // below still consume one for 0020..0040; if a v0020/0030/0040 sample shows a
+     // bogus SYSTEM, that is why, and the fix is to drop the read and the FSkip(4).
+     // Accepted versions in that build: 0020, 0030, 0040, 0050, 0060..0064.
+     //
+     // Layout confirmed on v0060/v0063 samples (texNum 1..33):
+     //   [0, HEADER_SIZE)                          header
+     //   [HEADER_SIZE, +4*TEX_COUNT)               attribute table, one dword each
+     //   [TEX_OFFSET, +4*TEX_COUNT)                offset table, one dword each
+     //   [TEX_OFFSET + 4*TEX_COUNT + attrBC, ...)  texture data
+     // and TEX_OFFSET == HEADER_SIZE + 4*TEX_COUNT, with offset[i] relative to
+     // TEX_OFFSET. HEADER_SIZE therefore has to be right for the attribute table
+     // to land, which is why the version split below matters.
         if (MAGICS.VERSION_NUMBER < 30)
         {
          // hard codes SYSTEM to 0;
          // No S_G1T_HEADER_EX
-            local PLATFORM SYSTEM = 0;
+            local KTGL_PLATFORM SYSTEM = KTGL_PLATFORM_DX9;
             local uint HEADER_EX_SIZE = 0;
             FSkip(4);
         } 
         else if (MAGICS.VERSION_NUMBER < 50)
         {
-            PLATFORM SYSTEM<fgcolor=cAqua>;
+            KTGL_PLATFORM SYSTEM<fgcolor=cAqua>;
          // No S_G1T_HEADER_EX
             local uint32 HEADER_EX_SIZE = 0;
             HEADER_SIZE += 4;
         } 
         else 
         {
-            PLATFORM SYSTEM<fgcolor=cAqua>;
+            KTGL_PLATFORM SYSTEM<fgcolor=cAqua>;
             uint32 HEADER_EX_SIZE<bgcolor=cLtBlue>;
             HEADER_SIZE += 8;
         }
@@ -1250,18 +1519,21 @@ struct ktgl
             local uint32 bUseSwitchSize<hidden=true> = false;
             local uint32 bUsePS5Size<hidden=true> = false;
             
-            if( S_G1T_HEADER.SYSTEM == NSwitch )
+            if( S_G1T_HEADER.SYSTEM == KTGL_PLATFORM_NX )
             {
                 bUseSwitchSize = true;
             }
             
-            if( S_G1T_HEADER.SYSTEM == PS5 )
+            if( S_G1T_HEADER.SYSTEM == KTGL_PLATFORM_PS5 )
             {
                 bUsePS5Size = true;
             }
             
             if(S_G1T_HEADER.FILE_SIZE != 0)
             {
+             // The attribute table sits at HEADER_SIZE, immediately after the header,
+             // and is a separate texNum*4 block from the offset table at TEX_OFFSET.
+             // Verified on samples: TEX_OFFSET (localBC) == HEADER_SIZE + 4*TEX_COUNT.
                 FSeek(S_G1T_HEADER.HEADER_SIZE + (i * 4));
                 struct
                 {
@@ -1274,12 +1546,12 @@ struct ktgl
                     }
                     else
                     {
-                        TEX_EX_TYPE TYPE<fgcolor=cAqua>;
-                        ubyte  COUNT<bgcolor=cBlack, hidden=true>; 
-                        ubyte  RESERVED_CONSUMED<hidden=true, fgcolor=cYellow, comment="System writes a 1 here once the extras have been consumed">;
+                        TEX_EX_TYPE TYPE<fgcolor=cAqua, comment="AKA usage">;
+                        ubyte  COUNT<bgcolor=cBlack, hidden=true, comment="AKA dataWC">; 
+                        ubyte  RESERVED_CONSUMED<hidden=true, fgcolor=cYellow, comment="AK ktgluse. System writes a 1 here once the extras have been consumed">;
                     }
                     
-                    if(TYPE == CHANNEL_SWAP)
+                    if(TYPE == KTGL_TEX_ATTR_USAGE_IBL_SPECULAR)
                     {
                         bUseSwitchSize = false;
                     }
@@ -1299,22 +1571,22 @@ struct ktgl
         
             struct 
             {
-                S_GT1_LOAD_TYPE KTGL_TEXTURE_TYPE : 4;                 // & 0xF
-                ubyte MIP_COUNT: 4;                                    // >> 4
-                ubyte KTGL_PIXEL_FORMAT<fgcolor=cAqua, format=hex>;    // + 1
-                local TEX_ENUMS tex_format = TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5];
-                byte PACKED_WIDTH: 4,                                  // +2 & 0xF
-                     PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite>; // +2 >> 4
-                byte PACKED_DEPTH: 4,                                  // + 3 & 0xF 
-                     READ_G1T_HEADER_EX: 4;                            // +3 >> 4
-                byte KTGL_GD_TEXADDRESSU: 4,                           // +4 & 0xF
-                     KTGL_GD_TEXADDRESSV: 4;                           // +4 > 4
-                byte KTGL_GD_TEXADDRESSW: 4,                           // +5 & 0xF
-                     KTGL_GD_TEXMAGFILTER: 4;                          // +5 >> 4
-                byte KTGL_GD_TEXMINFILTER: 4,                          // +6 & 0xF
-                     KTGL_GD_MIPFILTER: 4;                             // +6 >> 4
-                byte KTGL_GD_ANISO_SAMPLE_NUM: 4,                      // +7 & 0xF
-                     HAS_TEX_EX_HEADER: 4;                             // +7 >> 4
+                S_GT1_LOAD_TYPE KTGL_TEXTURE_TYPE : 4<comment="AKA texType">;            // & 0xF
+                ubyte MIP_COUNT: 4<comment="AKA levels">;                                // >> 4
+                KTGL_PIXEL_FORMAT PIXEL_FORMAT<fgcolor=cAqua, format=hex, comment="AKA fmt">;   // + 1
+                local TEX_ENUMS tex_format = TEX_FORMS[PIXEL_FORMAT * 5];
+                byte PACKED_WIDTH: 4<comment="AKA tw">,                                  // +2 & 0xF
+                     PACKED_HEIGHT: 4<bgcolor=cBlack, fgcolor=cWhite, comment="AKA th">; // +2 >> 4
+                byte PACKED_DEPTH: 4<comment="AKA td">,                                  // + 3 & 0xF 
+                     READ_G1T_HEADER_EX: 4<comment="AKA attrNum">;                       // +3 >> 4
+                byte KTGL_GD_TEXADDRESSU: 4<comment="AKA addrU">,                        // +4 & 0xF
+                     KTGL_GD_TEXADDRESSV: 4<comment="AKA addrV">;                        // +4 > 4
+                byte KTGL_GD_TEXADDRESSW: 4<comment="AKA addrW">,                        // +5 & 0xF
+                     KTGL_GD_TEXMAGFILTER: 4<comment="AKA magFilter">;                   // +5 >> 4
+                byte KTGL_GD_TEXMINFILTER: 4<comment="AKA minFilter">,                   // +6 & 0xF
+                     KTGL_GD_MIPFILTER: 4<comment="AKA mipFilter">;                      // +6 >> 4
+                byte KTGL_GD_ANISO_SAMPLE_NUM: 4<comment="AKA aniso">,                   // +7 & 0xF
+                     HAS_TEX_EX_HEADER: 4<comment="AKA hasExHeader">;                    // +7 >> 4
                      
                 local uint32 WIDTH =  1 << PACKED_WIDTH;  if(WIDTH  < 1) WIDTH  = 1;
                 
@@ -1330,9 +1602,9 @@ struct ktgl
                 {
                  // alot here is not read or used
                     uint32 S_G1T_TEX_HEADER_EX_SIZE<bgcolor=cBlack, fgcolor=cWhite>; // +8
-                    float  Z_SCALE<fgcolor=cYellow, comment="AKA SetMipLodBias">;    // +12 / +4
-                    ushort EX_FACES: 4<comment="aka MINI_MIP_LEVELS">,               // +16 / +8 & 0xF
-                           EX_ARRAY_COUNT : 12<fgcolor=cLtGreen, comment="AKA PlaneCount or MultiSample">;
+                    float  Z_SCALE<fgcolor=cYellow, comment="AKA mipLodBias">;       // +12 / +4
+                    ushort EX_FACES: 4<comment="aka minMipLevel">,                   // +16 / +8 & 0xF
+                           EX_ARRAY_COUNT : 12<fgcolor=cLtGreen, comment="AKA planeCount or multiSample">;
                     EX_SWIZZLE_TYPE  EX_SWIZZLE;                                     // +18 / +10
                     COLOR_SPACE  KTGL_GD_COLOR_SPACE<fgcolor=cAqua>;                 // +19 / +11 
                  // hard codes the full values if not power of 2
@@ -1427,7 +1699,7 @@ struct ktgl
                 
                 local string str = Str(
                     "0x%02X -%s %d x %d%s%s%s%s%s%s", 
-                    KTGL_PIXEL_FORMAT, 
+                    PIXEL_FORMAT, 
                     LOAD_TYPE_STR(KTGL_TEXTURE_TYPE),
                     WIDTH, 
                     HEIGHT,
@@ -1472,15 +1744,15 @@ struct ktgl
                         FSeek(return_to);
 					    switch (EX_HEADER.TYPE)
 					    {
-                        case CHANNEL_SWAP:
+                        case KTGL_TEX_ATTR_USAGE_IBL_SPECULAR:
                             bUseSwitchSize = false;
                             break;
-					    case PS4_PLANE_ARRAY:
+					    case KTGL_TEX_ATTR_USAGE_SH_IRRADIANCE_VOLUME:
 						    EX_ARRAY_DEPTH = EX_HEADER.ARRAY_DEPTH;
 						    break;
-					    case PSVITA_PS5_SWIZZLE:
+					    case KTGL_TEX_ATTR_USAGE_ARRAY:
 						    break;
-					    case ASTC_TYPE:
+					    case KTGL_TEX_ATTR_USAGE_ASTC:
 						    ASTC_FORMAT = EX_HEADER.KT_ASTC_FORMAT;
 						    break;
 					    default:
@@ -1493,7 +1765,7 @@ struct ktgl
             }
             
          // ASTC table
-            if( (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT - 0x7D) < 2 ) // ASTC format
+            if( (S_G1T_TEX_HEADER.PIXEL_FORMAT - 0x7D) < 2 ) // ASTC format
             { 
                 local TEX_ENUMS texFormat = ASTC_SUB[ASTC_FORMAT * 5];
                 local TEX_ENUMS texSpace =  ASTC_SUB[ASTC_FORMAT * 5 + 1];
@@ -1503,15 +1775,15 @@ struct ktgl
             } 
             else 
             {
-                local TEX_ENUMS texFormat = TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5];
-                local TEX_ENUMS texSpace =  TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 1];
-                local TEX_ENUMS dataType =  TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 2];
-                local float bitsPerPixel =    MakeBBP(TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 3]);
-                local uint minBytes =       TEX_FORMS[S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT * 5 + 4];
+                local TEX_ENUMS texFormat = TEX_FORMS[S_G1T_TEX_HEADER.PIXEL_FORMAT * 5];
+                local TEX_ENUMS texSpace =  TEX_FORMS[S_G1T_TEX_HEADER.PIXEL_FORMAT * 5 + 1];
+                local TEX_ENUMS dataType =  TEX_FORMS[S_G1T_TEX_HEADER.PIXEL_FORMAT * 5 + 2];
+                local float bitsPerPixel =    MakeBBP(TEX_FORMS[S_G1T_TEX_HEADER.PIXEL_FORMAT * 5 + 3]);
+                local uint minBytes =       TEX_FORMS[S_G1T_TEX_HEADER.PIXEL_FORMAT * 5 + 4];
             }
-            
-            local uint64 offset<hidden=true> = FTell();    
-            
+
+            local uint64 offset<hidden=true> = FTell();
+
             local uint32 MIPS   = S_G1T_TEX_HEADER.MIPS;
             
             local uint32 WIDTH  = S_G1T_TEX_HEADER.WIDTH;
@@ -1539,7 +1811,7 @@ struct ktgl
             local uint64 totalTexBufferLen = 0;
             
          // Add special handlers
-            switch (S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT)
+            switch (S_G1T_TEX_HEADER.PIXEL_FORMAT)
             {
                 case 0x06: // DXT, ETC, and PVRTC 4bpp
                 case 0x07:
@@ -1567,6 +1839,7 @@ struct ktgl
                 case 0x64:
                 case 0x65:
                 case 0x66: 
+                case 0x71:
                 case 0x7A:
                 case 0x7B:
                 case 0x7C:
@@ -1601,9 +1874,8 @@ struct ktgl
 		            }
                     bCompressedFormat = 1;
                     break;
-                case 0x6F: // Alpha Atlas formats
-                case 0x70:
-                case 0x71: // Alpha Atlas formats
+                case 0x6F: 
+                case 0x70: // Alpha Atlas formats
                  // Offsets on these format are off
                  // bitsPerPixel is adjusted for size but not the height
                     bHasAlphaAtlas = 1;  
@@ -1617,7 +1889,7 @@ struct ktgl
             
             local uint32 pAlignment<hidden=true> = 0;
             
-            if( S_G1T_HEADER.SYSTEM == PS4 )
+            if( S_G1T_HEADER.SYSTEM == KTGL_PLATFORM_PS4 )
             {
                 pAlignment = 4096;
             }
@@ -1728,13 +2000,13 @@ struct ktgl
                     bitsPerPixel,
                     pAlignment
                 );
-                
+
                 expectedBufferSize = totalTexBufferLen;
             }
             
             local string str<hidden=true> = Str(
                 "%s -%s %d x %d%s%s%s%s%s%s", 
-                FORMAT_STR(S_G1T_TEX_HEADER.KTGL_PIXEL_FORMAT, ASTC_FORMAT), 
+                FORMAT_STR(S_G1T_TEX_HEADER.PIXEL_FORMAT, ASTC_FORMAT), 
                 LOAD_TYPE_STR(S_G1T_TEX_HEADER.KTGL_TEXTURE_TYPE),
                 WIDTH, 
                 HEIGHT,
@@ -1747,47 +2019,99 @@ struct ktgl
                 );
                 
          // Some files have zlib compressed images now
-            if(S_G1T_TEX_HEADER.EX_SWIZZLE == ZLIB_COMPRESSED)
+         //
+         // MEASURED against the 29 files in g1t/StreamingTexContext/, which are
+         // the only ones in the corpus that reach this branch - all 29 are G1T
+         // v0066 with EX_SWIZZLE == ZLIB_COMPRESSED, and no file at any other
+         // version (0050, 0060..0065, including the 25 in g1t/TexContext/) has
+         // it. Everything asserted below holds on 29 of 29:
+         //
+         //   COMPED_WINDOW_SIZE is 0x10000 everywhere, and it really is the
+         //   uncompressed page size: the streamed page grids divide the texture
+         //   into pages of exactly that many bytes (1024x1024 at 1 bpp gives
+         //   4x4 / 2x2 / 1x1 pages of 256x256; 2048x2048 at 0.5 bpp gives
+         //   4x8 / 2x4 / 1x2 pages of 512x256 - both 64 KiB).
+         //
+         //   COMPED_BLOCK_SIZE == 36 + 16*mips*layers + 8*(PAGE_COUNT+1).
+         //
+         //   RESIDENT_LEVELS == mipCount - STREAMED_LEVELS, so the two record
+         //   loops below together cover every mip of every layer exactly once.
+         //
+         //   The offset/size pairs partition the whole of the rest of the file:
+         //   each one ends exactly where the next begins and the last ends at
+         //   EOF, with PAGE_COUNT+1 pairs in total.
+         //
+         //   STREAMED_LEVELS is always chosen so the resident chain starts at
+         //   128x128 - the resident dimensions are (128, 64, 32, ...) on all 29
+         //   files. That is the residency budget: 128x128 and below ships in
+         //   the file, everything above it streams.
+            if(exists(S_G1T_TEX_HEADER.EX_SWIZZLE) && S_G1T_TEX_HEADER.EX_SWIZZLE == ZLIB_COMPRESSED)
             {
-                struct 
+                struct
                 {
-                    struct 
+                    struct
                     {
-                        char COMPED_VER_NUM[4];
-                        int COMPED_TABLE_SIZE;
-                        int COMPED_UKN1;
-                        int COMPED_WINDOW_SIZE;
-                        int COMPED_META1;
-                        int COMPED_CHUNKS;
-                        int COMPED_META2;
-                        int COMPED_HAS_UNCOMPED_CHUNK;
-                        int COMPED_UNCOMPED_CHUNK_SIZE;
-                        local int UNCOMPRESSED_SIZE = (COMPED_CHUNKS * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNK_SIZE);
+                        char COMPED_VER_NUM[4]<comment="always \"0000\"">;
+                        int COMPED_BLOCK_SIZE<comment="36 + 16*mips*layers + 8*(PAGE_COUNT+1) on every sample">;
+                        int COMPED_UKN1<comment="128 on all 29 samples. UNDETERMINED">;
+                        int COMPED_WINDOW_SIZE<format=hex, comment="0x10000 on all 29. Uncompressed size of one streamed page">;
+                        int STREAMED_LEVELS<bgcolor=cLtGreen, comment="Mip levels held as compressed pages rather than in the file">;
+                        int PAGE_COUNT<comment="Total streamed pages; equals the sum of TILES_X*TILES_Y below">;
+                        int RESIDENT_LEVELS<comment="was COMPED_META2. VERIFIED == mipCount - STREAMED_LEVELS on all 29 samples">;
+                        int COMPED_HAS_UNCOMPED_CHUNK<comment="1 or 2 across the corpus; only ever tested against zero, and there is never more than one uncompressed chunk">;
+                        int COMPED_UNCOMPED_CHUNK_SIZE<comment="Size of the resident tail. VERIFIED == the sum of every RESIDENT_LEVEL.BYTE_SIZE">;
+                        local int UNCOMPRESSED_SIZE = (PAGE_COUNT * COMPED_WINDOW_SIZE) + (COMPED_UNCOMPED_CHUNK_SIZE);
                         local int64 EXPECTED_SIZE = expectedBufferSize;
                     } S_G1T_COMPED_HEADER<fgcolor=cLtRed, optimize=false, read=Str("Uncompressed size %d, expecting %d", this.UNCOMPRESSED_SIZE, this.EXPECTED_SIZE)>;
-                    
-                    for(i = 0; i < (S_G1T_COMPED_HEADER.COMPED_META1 * DEPTH * FACES * PLANE_COUNT); i++)
+
+                 // One per streamed mip level per layer, ordered layer-minor.
+                 // Each describes how that level is cut into pages. VERIFIED on
+                 // all 29 samples: the TILES_X*TILES_Y products sum to exactly
+                 // PAGE_COUNT, and FIRST_PAGE runs contiguously from 0 up to it,
+                 // so the pages of every level tile the page array with no gap
+                 // and no overlap.
+                    for(i = 0; i < (S_G1T_COMPED_HEADER.STREAMED_LEVELS * DEPTH * FACES * PLANE_COUNT); i++)
                     {
-                        struct 
+                        struct
                         {
-                            int COMPED_META_DATA1;
-                            int COMPED_META_DATA2;
-                            int COMPED_META_DATA3;
-                            int COMPED_META_DATA4;
-                        }S_G1T_COMPED_META1<fgcolor=cLtGreen, optimize=false>;
+                            int TILES_X;
+                            int TILES_Y;
+                            int PAGE_ZERO<comment="0 on every streamed record in every sample">;
+                            int FIRST_PAGE<comment="Index of this level's first page in the offset table below">;
+                        }S_G1T_COMPED_LEVELS<fgcolor=cLtGreen, optimize=false,
+                            read=Str("%d x %d pages from #%d", this.TILES_X, this.TILES_Y, this.FIRST_PAGE)>;
                     }
-                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_META2 * DEPTH * FACES * PLANE_COUNT; i++)
+                 // One per resident mip level per layer, same layer-minor order,
+                 // picking up where the streamed levels left off.
+                 //
+                 // ROW_PITCH is BYTES PER ROW, not a dimension - BYTE_SIZE is
+                 // always a whole multiple of it and the quotient is the mip
+                 // dimension. That is the only reading that survives across
+                 // formats: a 2048 base at 0.5 bpp and a 1024 base at 1 bpp both
+                 // store pitch 128 for their first resident level. With it, the
+                 // recovered dimensions halve cleanly, the first equals
+                 // max(WIDTH,HEIGHT) >> STREAMED_LEVELS, and the sizes sum to
+                 // COMPED_UNCOMPED_CHUNK_SIZE - all on 29 of 29 samples.
+                 //
+                 // The last two ints are one 64 bit runtime pointer, and they
+                 // hold 0xBAADBAAD each in every record of every file. So this
+                 // whole block is a serialised runtime structure written out
+                 // with its pointer slots still poisoned, not a purpose built
+                 // table - the same tell as the G1M meshlet sections.
+                    for(i = 0; i < S_G1T_COMPED_HEADER.RESIDENT_LEVELS * DEPTH * FACES * PLANE_COUNT; i++)
                     {
-                        struct 
+                        struct
                         {
-                            int COMPED_META_DATA1;
-                            int COMPED_META_DATA2;
-                            int COMPED_META_DATA3<format=hex>;
-                            int COMPED_META_DATA4<format=hex>;
-                        }S_G1T_COMPED_META2<fgcolor=cLtBlue, optimize=false>;
+                            int ROW_PITCH<comment="Bytes per row. BYTE_SIZE / ROW_PITCH is the mip dimension">;
+                            int BYTE_SIZE;
+                            int RUNTIME_PTR_LO<format=hex, comment="0xBAADBAAD poison in every sample">;
+                            int RUNTIME_PTR_HI<format=hex, comment="0xBAADBAAD poison in every sample">;
+                            local int DIM = ROW_PITCH ? BYTE_SIZE / ROW_PITCH : 0;
+                        }S_G1T_COMPED_RESIDENT<fgcolor=cLtBlue, optimize=false,
+                            read=Str("%d x %d, %d bytes (pitch %d)", this.DIM, this.DIM, this.BYTE_SIZE, this.ROW_PITCH)>;
                     }
                     local int64 COMPRESSED_SIZE = 0;
-                    for(i = 0; i < S_G1T_COMPED_HEADER.COMPED_CHUNKS; i++)
+                    for(i = 0; i < S_G1T_COMPED_HEADER.PAGE_COUNT; i++)
                     {
                         struct 
                         {
@@ -1807,7 +2131,7 @@ struct ktgl
                 
                 struct
                 {
-                    for(i = 0; i < S_G1T_COMPED.S_G1T_COMPED_HEADER.COMPED_CHUNKS; i++)
+                    for(i = 0; i < S_G1T_COMPED.S_G1T_COMPED_HEADER.PAGE_COUNT; i++)
                     {
                         struct 
                         {
@@ -1830,13 +2154,13 @@ struct ktgl
                  // If there is only one texture, check if there is extra data and meet it
                     if(offset + totalTexBufferLen < fileSize)
                     {
-                        local string errorMessage = Str("Data size of %d but expecting %d.", totalTexBufferLen, fileSize - offset);
+                        local string errorMessage = Str("Data size of %d but expecting %d.\n", totalTexBufferLen, fileSize - offset);
                         totalTexBufferLen = fileSize - offset;
                         bHasError = 1;
                     }
                     else if (offset + totalTexBufferLen > fileSize)
                     {
-                        local string errorMessage = Str("Data size of %d but only %d left.", totalTexBufferLen, fileSize - offset);
+                        local string errorMessage = Str("Data size of %d but only %d left.\n", totalTexBufferLen, fileSize - offset);
                         totalTexBufferLen = fileSize - offset;
                         bHasError = 1;
                     }
@@ -1857,22 +2181,22 @@ struct ktgl
                             {
                                 if(offset + totalTexBufferLen + dif <= fileSize)
                                 {
-                                    local string errorMessage = Str("Data size on texture %d was %d but less than the expected %d.", i, totalTexBufferLen, expected_offset - offset);
+                                    local string errorMessage = Str("Data size on texture %d was %d but less than the expected %d.\n", i, totalTexBufferLen, expected_offset - offset);
                                     totalTexBufferLen += dif;
                                     bHasError = 1;
                                 }
                                 else
                                 {
-                                    local string errorMessage = Str("Data size on texture %d was more than remaining file size of %d.", i, offset + totalTexBufferLen);
+                                    local string errorMessage = Str("Data size on texture %d was more than remaining file size of %d.\n", i, offset + totalTexBufferLen);
                                     bHasError = 1;
                                 }
                             }
                             else
                          // If expected offset is under, warn and continue. But check for max file size.
                             {
-                                if(!bHasAlphaAtlas && S_G1T_SKIP_TABLE[i + 1] != 0)
+                                if(S_G1T_TEX_HEADER.PIXEL_FORMAT != 0x71 && !bHasAlphaAtlas && S_G1T_SKIP_TABLE[i + 1] != 0)
                                 {
-                                    local string errorMessage = Str("Data size on texture %d was more than expected at %d instead of %d.", i, totalTexBufferLen, expected_offset - offset);
+                                    local string errorMessage = Str("Data size on texture %d was more than expected at %d instead of %d.\n", i, totalTexBufferLen, expected_offset - offset);
                                     totalTexBufferLen = expected_offset - offset;
                                     bHasError = 1;
                                 }
@@ -1900,7 +2224,7 @@ struct ktgl
                 ubyte TEX_DATA[totalTexBufferLen]<comment="Textures are stored with their mipmaps in this array", format=hex, open=suppress, bgcolor=cDkBlue, fgcolor=cLtAqua>;
                 
              // These formats have issues with the skip tables
-                if(bHasAlphaAtlas || ((i < (S_G1T_HEADER.TEX_COUNT - 1) && S_G1T_SKIP_TABLE[i+1] == 0)))
+                if((bHasAlphaAtlas || S_G1T_TEX_HEADER.PIXEL_FORMAT == 0x71 ) || ((i < (S_G1T_HEADER.TEX_COUNT - 1) && S_G1T_SKIP_TABLE[i+1] == 0)))
                 {
                     returnto = offset + totalTexBufferLen;
                 }
